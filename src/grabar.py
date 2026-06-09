@@ -175,6 +175,59 @@ def grabar_audio(
     return grabacion.reshape(-1)
 
 
+def preparar_audio_en_vivo(
+    audio: np.ndarray,
+    frecuencia: int = FRECUENCIA_MUESTREO,
+    umbral_relativo: float = 0.08,
+    ventana_ms: int = 25,
+    margen_ms: int = 80,
+) -> np.ndarray:
+    """
+    Recorta silencios al inicio/fin y normaliza amplitud.
+
+    Acerca la grabacion en vivo al perfil de los WAV del dataset (voz centrada).
+    """
+    audio = np.asarray(audio, dtype=np.float64).reshape(-1)
+    if len(audio) == 0:
+        return audio
+
+    pico = float(np.max(np.abs(audio)))
+    if pico > 1e-8:
+        audio = audio * (0.95 / pico)
+
+    ventana = max(1, int(frecuencia * ventana_ms / 1000))
+    margen = int(frecuencia * margen_ms / 1000)
+    n_frames = max(1, len(audio) // ventana)
+    energias = np.array(
+        [float(np.mean(audio[i * ventana : (i + 1) * ventana] ** 2)) for i in range(n_frames)]
+    )
+    energia_max = float(np.max(energias))
+    if energia_max <= 1e-14:
+        return audio
+
+    umbral = umbral_relativo * energia_max
+    activos = np.where(energias >= umbral)[0]
+    if len(activos) == 0:
+        return audio
+
+    inicio = max(0, activos[0] * ventana - margen)
+    fin = min(len(audio), (activos[-1] + 1) * ventana + margen)
+    return audio[inicio:fin]
+
+
+def grabar_audio_asistente(
+    duracion_segundos: float = DURACION_GRABACION,
+    frecuencia: int = FRECUENCIA_MUESTREO,
+    *,
+    aviso: bool = True,
+) -> np.ndarray:
+    """Graba y prepara audio para prediccion en vivo."""
+    if aviso:
+        print("\a", end="", flush=True)  # beep: empieza a grabar ya
+    audio = grabar_audio(duracion_segundos, frecuencia)
+    return preparar_audio_en_vivo(audio, frecuencia)
+
+
 def guardar_audio(
     ruta: Path,
     audio: np.ndarray,

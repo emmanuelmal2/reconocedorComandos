@@ -127,6 +127,42 @@ def calcular_margen_confianza(puntajes: dict[str, float]) -> tuple[float, str, s
     return margen, primero, segundo
 
 
+def calcular_margenes_comando(
+    puntajes: dict[str, float],
+) -> tuple[float, float, str, str, str | None]:
+    """
+    Margenes 1.º-2.º y 1.º-3.º para decidir confianza en fase de comando (3 clases).
+    """
+    ordenados = sorted(puntajes.items(), key=lambda x: x[1], reverse=True)
+    primero, puntaje_1 = ordenados[0]
+    segundo, puntaje_2 = ordenados[1]
+    margen_12 = puntaje_1 - puntaje_2
+    if len(ordenados) >= 3:
+        tercero, puntaje_3 = ordenados[2]
+        margen_13 = puntaje_1 - puntaje_3
+        return margen_12, margen_13, primero, segundo, tercero
+    return margen_12, float("inf"), primero, segundo, None
+
+
+def es_comando_confiable(
+    puntajes: dict[str, float],
+    margen_minimo: float,
+    margen_tercero_minimo: float,
+) -> tuple[bool, float, str, str]:
+    """
+    True si el comando es confiable por separacion 1.º-2.º o 1.º-3.º.
+
+    En vivo, listar/memoria pueden quedar muy cerca pero lejos de procesos;
+    en ese caso el margen hasta el 3.º lugar basta para aceptar.
+    """
+    margen_12, margen_13, primero, segundo, _ = calcular_margenes_comando(puntajes)
+    if margen_12 >= margen_minimo:
+        return True, margen_12, primero, segundo
+    if margen_13 >= margen_tercero_minimo:
+        return True, margen_13, primero, segundo
+    return False, margen_12, primero, segundo
+
+
 def es_prediccion_confiable(
     puntajes: dict[str, float],
     intencion_esperada: str | None = None,

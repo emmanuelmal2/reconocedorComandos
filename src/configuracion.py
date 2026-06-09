@@ -80,11 +80,13 @@ HMM_COVARIANCE_TYPE = "diag"
 HMM_N_ITER = 100
 HMM_RANDOM_STATE = 42
 
-# Confianza en prediccion (diferencia de log-likelihood entre 1.º y 2.º)
-# Si el margen es menor, el asistente pide repetir la frase.
+# Confianza en prediccion (diferencia de log-likelihood entre candidatos).
+# En vivo el microfono de la VM suele dar margenes mas bajos que los WAV del dataset.
 MARGEN_MINIMO_ACTIVACION = 25
-MARGEN_MINIMO_COMANDO = 35
-MAX_REINTENTOS_COMANDO = 2
+MARGEN_MINIMO_COMANDO = 12
+# Si 1.º y 2.º estan muy cerca, aceptar si el 3.º queda claramente peor (ej. listar vs memoria).
+MARGEN_MINIMO_COMANDO_TERCERO = 22
+MAX_REINTENTOS_COMANDO = 3
 
 # Evaluacion holdout (train/test split estratificado)
 HOLDOUT_TEST_SIZE = 0.2

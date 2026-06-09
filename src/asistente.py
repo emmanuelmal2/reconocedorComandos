@@ -22,6 +22,7 @@ from src.configuracion import (
     INTENCIONES_EJECUTABLES,
     MARGEN_MINIMO_ACTIVACION,
     MARGEN_MINIMO_COMANDO,
+    MARGEN_MINIMO_COMANDO_TERCERO,
     MAX_REINTENTOS_COMANDO,
 )
 from src import consola
@@ -32,9 +33,10 @@ from src.demo_linux import (
 )
 from src.evaluar import evaluar_dataset, mostrar_reporte_demo
 from src.ejecutar import ejecutar_intencion
-from src.grabar import grabar_audio
+from src.grabar import grabar_audio_asistente
 from src.predecir import (
     calcular_margen_confianza,
+    es_comando_confiable,
     mostrar_puntajes,
     predecir_intencion,
     predecir_intencion_desde_senal,
@@ -65,7 +67,7 @@ def escuchar_activacion(verbose: bool = False, demo: bool = False) -> bool:
         consola.info("  Presiona Enter cuando vayas a hablar...")
     input("  Presiona Enter para grabar...")
 
-    senal = grabar_audio()
+    senal = grabar_audio_asistente(aviso=demo)
     intencion, puntajes = predecir_intencion_desde_senal(
         senal,
         intenciones_permitidas=INTENCIONES,
@@ -98,7 +100,12 @@ def escuchar_activacion(verbose: bool = False, demo: bool = False) -> bool:
     return True
 
 
-def escuchar_comando(verbose: bool = False, demo: bool = False) -> tuple[str | None, dict[str, float]]:
+def escuchar_comando(
+    verbose: bool = False,
+    demo: bool = False,
+    margen_minimo: float = MARGEN_MINIMO_COMANDO,
+    margen_tercero: float = MARGEN_MINIMO_COMANDO_TERCERO,
+) -> tuple[str | None, dict[str, float]]:
     """
     Graba y predice comando con reintentos si la confianza es baja.
 
@@ -110,25 +117,34 @@ def escuchar_comando(verbose: bool = False, demo: bool = False) -> tuple[str | N
     for intento in range(1, MAX_REINTENTOS_COMANDO + 1):
         if demo:
             consola.estado("comando")
+            consola.info("  Al oir el beep, di la frase completa de inmediato.")
         else:
             print(f"\n=== Escuchando comando (intento {intento}/{MAX_REINTENTOS_COMANDO}) ===")
-        input("  Presiona Enter y habla al instante...")
-        senal = grabar_audio()
+        input("  Presiona Enter y habla al instante (beep = grabando)...")
+        senal = grabar_audio_asistente(aviso=True)
 
         intencion, puntajes = predecir_intencion_desde_senal(
             senal,
             intenciones_permitidas=INTENCIONES_EJECUTABLES,
             verbose=verbose,
         )
-        margen, primero, segundo = calcular_margen_confianza(puntajes)
+        confiable, margen, primero, segundo = es_comando_confiable(
+            puntajes,
+            margen_minimo,
+            margen_tercero,
+        )
         mostrar_puntajes(puntajes, intencion)
 
-        if margen >= MARGEN_MINIMO_COMANDO:
-            print(f"  Confianza OK (margen {margen:.1f}, 2.º lugar: {segundo}).")
+        if confiable:
+            frase = FRASES_DEMO[intencion][0]
+            print(
+                f"  Confianza OK (margen {margen:.1f}, 2.º lugar: {segundo}). "
+                f'Frase detectada: "{frase}"'
+            )
             return intencion, puntajes
 
         print(
-            f"  [aviso] Poca confianza (margen {margen:.1f} < {MARGEN_MINIMO_COMANDO}). "
+            f"  [aviso] Poca confianza (margen 1.º-2.º {margen:.1f} < {margen_minimo}). "
             f"Gano '{primero}' pero '{segundo}' estaba muy cerca."
         )
         if intento < MAX_REINTENTOS_COMANDO:
@@ -172,6 +188,8 @@ def ejecutar_flujo_asistente(
     una_vez: bool = False,
     demo: bool = False,
     mostrar_evaluacion: bool = True,
+    margen_comando: float = MARGEN_MINIMO_COMANDO,
+    margen_comando_tercero: float = MARGEN_MINIMO_COMANDO_TERCERO,
 ) -> None:
     """Bucle principal del asistente de voz."""
     sistema = "macOS (desarrollo)" if sys.platform == "darwin" else "Linux"
@@ -180,7 +198,7 @@ def ejecutar_flujo_asistente(
         consola.banner_inicio(sistema, INTENCIONES_EJECUTABLES)
         consola.info(
             f"Margenes: activacion={MARGEN_MINIMO_ACTIVACION}, "
-            f"comando={MARGEN_MINIMO_COMANDO}"
+            f"comando={margen_comando} (o {margen_comando_tercero} vs 3.º)"
         )
         if mostrar_evaluacion:
             mostrar_evaluacion_demo()
@@ -207,7 +225,12 @@ def ejecutar_flujo_asistente(
             consola.estado("activo")
         else:
             print("\nActivacion detectada. Di un comando.")
-        intencion, puntajes = escuchar_comando(verbose=verbose, demo=demo)
+        intencion, puntajes = escuchar_comando(
+            verbose=verbose,
+            demo=demo,
+            margen_minimo=margen_comando,
+            margen_tercero=margen_comando_tercero,
+        )
 
         if intencion is None:
             if una_vez:
@@ -284,6 +307,21 @@ def main() -> None:
         action="store_true",
         help="En modo --demo, no evaluar el dataset ni mostrar matriz al inicio",
     )
+    parser.add_argument(
+        "--margen-comando",
+        type=float,
+        default=MARGEN_MINIMO_COMANDO,
+        help=f"Margen minimo 1.º vs 2.º en comandos (default: {MARGEN_MINIMO_COMANDO})",
+    )
+    parser.add_argument(
+        "--margen-comando-tercero",
+        type=float,
+        default=MARGEN_MINIMO_COMANDO_TERCERO,
+        help=(
+            "Margen minimo 1.º vs 3.º si 1.º y 2.º estan muy cerca "
+            f"(default: {MARGEN_MINIMO_COMANDO_TERCERO})"
+        ),
+    )
     args = parser.parse_args()
 
     if args.probar_comando:
@@ -295,6 +333,8 @@ def main() -> None:
         una_vez=args.una_vez,
         demo=args.demo,
         mostrar_evaluacion=not args.sin_evaluacion,
+        margen_comando=args.margen_comando,
+        margen_comando_tercero=args.margen_comando_tercero,
     )
 
 
