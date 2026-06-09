@@ -75,12 +75,9 @@ def escuchar_activacion(
         consola.estado("escucha")
     else:
         print("\n=== Escuchando frase de activacion ===")
-    print('  Di exactamente: "oye computadora"')
-    if demo:
-        consola.info("  Presiona Enter cuando vayas a hablar...")
-    input("  Presiona Enter para grabar...")
+    input('  [Enter] → graba 3 s → di: "oye computadora"')
 
-    senal = grabar_audio_asistente(aviso=demo)
+    senal = grabar_audio_asistente(aviso=True)
     intencion, puntajes = predecir_intencion_desde_senal(
         senal,
         intenciones_permitidas=INTENCIONES,
@@ -137,10 +134,15 @@ def escuchar_comando(
     for intento in range(1, MAX_REINTENTOS_COMANDO + 1):
         if demo:
             consola.estado("comando")
-            consola.info("  Al oir el beep, di la frase completa de inmediato.")
         else:
             print(f"\n=== Escuchando comando (intento {intento}/{MAX_REINTENTOS_COMANDO}) ===")
-        input("  Presiona Enter y habla al instante (beep = grabando)...")
+
+        # Tras activar: primera toma sin otro Enter (mas fluido en la demo)
+        if intento == 1 and demo:
+            print("  Grabando comando ahora — di una frase de la lista.")
+        else:
+            input("  [Enter] → graba 3 s → di el comando")
+
         senal = grabar_audio_asistente(aviso=True)
 
         intencion, puntajes = predecir_intencion_desde_senal(
