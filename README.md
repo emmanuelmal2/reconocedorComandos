@@ -34,28 +34,82 @@ sudo apt update
 sudo apt install -y python3-venv python3-pip portaudio19-dev python3-tk \
   gnome-terminal libnotify-bin
 
-cd ~/reconocedorComandos   # o donde clonaste el repo
+cd ~/reconocedorComandos
 git pull
-
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-
-# Los .pkl no van en git: hay que entrenar una vez en la VM
-python3 -m src.entrenar
-
-# Calibracion en la VM: solo Emmanuel re-graba (~5 min, obligatorio para demo en vivo)
-python3 -m src.calibrar_vm --hablante emmanuel
-# ^ entrena con: python3 -m src.entrenar --hablante emmanuel (solo tu voz + este micro)
-
-# Probar un comando suelto antes de la demo:
-python3 -m src.probar_microfono --hablante emmanuel --comandos
-
-# Demo en vivo
-python3 -m src.asistente --demo --hablante emmanuel
 ```
 
-Frases exactas en la demo: **"oye computadora"** → activacion; luego **"listar archivos"**, **"muestra la memoria"** o **"ver procesos"**.
+Los `.pkl` no van en git. **Antes de la demo en vivo hay que calibrar** con el microfono de la VM (ver seccion siguiente).
+
+Frases exactas: **"oye computadora"** → activacion; luego **"listar archivos"**, **"muestra la memoria"** o **"ver procesos"**.
+
+---
+
+## Calibracion en la VM y demo por hablante
+
+Los audios del repo se grabaron en otro equipo. En la VM hay que **re-grabar con el mismo micro** que usaran en la expo. Sin eso, la activacion puede funcionar pero los comandos se confunden.
+
+`calibrar_vm` sobrescribe solo los WAV del hablante indicado (`*_emmanuel_*` o `*_elioth_*`). Los del otro hablante en `dataset/` **no se borran** y siguen valiendo para el informe (evaluacion offline ~97 %).
+
+| Situacion | Calibrar | Demo en vivo |
+|-----------|----------|--------------|
+| Solo Emmanuel presenta | `python3 -m src.calibrar_vm --hablante emmanuel` | `python3 -m src.asistente --demo --hablante emmanuel` |
+| Solo Elioth presenta (cuando pueda) | `python3 -m src.calibrar_vm --hablante elioth` | `python3 -m src.asistente --demo --hablante elioth` |
+| Los dos presentan el mismo dia | `python3 -m src.calibrar_vm --todos` | `python3 -m src.asistente --demo` (ambas voces) |
+
+**Importante:** `calibrar_vm --hablante X` entrena con `entrenar --hablante X` y **solo deja modelos `.pkl` de ese hablante** en `models/`. Si Elioth calibra despues de Emmanuel, Emmanuel debe volver a calibrar (o usar `--todos` cuando los dos puedan grabar).
+
+### Emmanuel (expo actual)
+
+```bash
+python3 -m src.calibrar_vm --hablante emmanuel
+
+# Probar micro antes de la demo
+python3 -m src.probar_microfono --activacion --hablante emmanuel
+python3 -m src.probar_microfono --comandos --hablante emmanuel
+
+# Demo
+python3 -m src.asistente --demo --hablante emmanuel
+# o: ./scripts/iniciar_demo_linux.sh
+```
+
+### Elioth (cuando pueda grabar en la VM)
+
+Sus audios **ya estan en GitHub** para el dataset academico. Para hablar **en vivo** en la VM necesita calibrar una vez (mismo micro, ~5 min):
+
+```bash
+python3 -m src.calibrar_vm --hablante elioth
+
+python3 -m src.probar_microfono --activacion --hablante elioth
+python3 -m src.probar_microfono --comandos --hablante elioth
+
+python3 -m src.asistente --demo --hablante elioth
+```
+
+`--hablante elioth` usa **solo** sus modelos (`activacion_elioth.pkl`, etc.); no mezcla con Emmanuel en la prediccion.
+
+### Los dos hablantes
+
+```bash
+python3 -m src.calibrar_vm --todos
+python3 -m src.asistente --demo
+```
+
+### Flujo de la demo (UX)
+
+1. `[Enter]` → graba 3 s → di **"oye computadora"**
+2. Si activa → **graba el comando al instante** (sin otro Enter la primera vez)
+3. Di el comando; si falla, pide Enter para reintentar
+
+Arranque rapido (sin matriz al inicio):
+
+```bash
+python3 -m src.asistente --demo --hablante emmanuel --sin-evaluacion
+```
+
+**No uses** `--hablante elioth` en vivo si Elioth no calibro en esa VM: los modelos del repo son de otro microfono y clasificaran mal.
 
 ---
 
@@ -80,6 +134,8 @@ ReconocimientoPatrones/
 │   ├── consola.py
 │   ├── demo_linux.py
 │   ├── regrabar_fallos.py
+│   ├── calibrar_vm.py
+│   ├── probar_microfono.py
 │   └── ejecutar.py
 ├── scripts/
 │   ├── iniciar_demo_linux.sh
@@ -109,39 +165,6 @@ Ejemplo: `dataset/memoria/memoria_elioth_frase01_rep03.wav`
 
 ---
 
-## Elioth y la demo en vivo
-
-Los **40 audios de Elioth siguen en el repo** (`*_elioth_*.wav`). Sirven para:
-
-- entrenar el escalador y los HMM (evaluacion offline ~97 %)
-- el reporte academico / matriz de confusion
-
-**Elioth no necesita volver a grabar.** Si no puede estar en la VM, no pasa nada.
-
-En la **exposicion en vivo** solo habla **Emmanuel** con el micro de la VM:
-
-```bash
-python3 -m src.calibrar_vm --hablante emmanuel   # solo sobrescribe *_emmanuel_*.wav
-python3 -m src.asistente --demo --hablante emmanuel
-```
-
-Importante: sin `--hablante emmanuel`, el sistema mezcla modelos de Elioth (grabados en Mac) y puede clasificar mal en el micro de la VM.
-
-Si algun dia **los dos** pueden grabar en la misma VM: `python3 -m src.calibrar_vm --todos` y demo sin `--hablante`.
-
----
-
-## Instrucciones para Elioth (dataset en GitHub)
-
-Sus audios **ya estan en el repo**; no hace falta grabar de nuevo salvo que quieran mejorar una toma desde Mac:
-
-```bash
-python -m src.grabar --hablante elioth --intencion memoria --frase 1 --repeticion 1 --forzar
-python -m src.entrenar
-```
-
----
-
 ## Uso general
 
 ### Grabar dataset
@@ -155,13 +178,31 @@ python -m src.grabar --hablante emmanuel --forzar   # re-grabar sin preguntar
 ### Entrenar modelos
 
 ```bash
-python -m src.entrenar
-python -m src.entrenar --verbose
+python3 -m src.entrenar                    # todos los hablantes (informe / evaluacion)
+python3 -m src.entrenar --hablante emmanuel   # solo un hablante (tras calibrar_vm)
+python3 -m src.entrenar --verbose
 ```
 
 Genera `models/escalador.pkl` y un HMM por intencion **y hablante**
-(`memoria_emmanuel.pkl`, `memoria_elioth.pkl`, ...). En prediccion se usa el
-mejor score entre hablantes por intencion, asi funciona con ambas voces.
+(`memoria_emmanuel.pkl`, `memoria_elioth.pkl`, ...). Sin `--hablante`, en prediccion se usa el
+mejor score entre hablantes (max-pooling). En la demo en vivo conviene `--hablante` tras calibrar en la VM.
+
+### Calibrar microfono (VM)
+
+```bash
+python3 -m src.calibrar_vm --hablante emmanuel
+python3 -m src.calibrar_vm --hablante elioth
+python3 -m src.calibrar_vm --todos
+```
+
+### Probar microfono (sin bucle del asistente)
+
+```bash
+python3 -m src.probar_microfono --activacion --hablante emmanuel   # "oye computadora"
+python3 -m src.probar_microfono --comandos --hablante emmanuel       # listar / memoria / procesos
+```
+
+No uses `--comandos` para probar activacion: ese modo excluye "oye computadora" a proposito.
 
 ### Evaluar precision
 
@@ -220,31 +261,25 @@ python -m src.asistente --probar-comando dataset/listar/listar_emmanuel_frase01_
 
 ### Modo demo (presentacion en Linux / VM)
 
-Para la exposicion: proceso **siempre activo** (bucle hasta Ctrl+C), consola con colores y, en Linux, ventanas de terminal que se abren al activar y al ejecutar comandos.
+Consola con colores, matriz de confusion al inicio (opcional) y terminales extra en Linux.
 
 ```bash
-# Opcion recomendada en la VM (abre gnome-terminal / xfce4-terminal si hay GUI)
 ./scripts/iniciar_demo_linux.sh
+# equivalente a: python3 -m src.asistente --demo --hablante emmanuel
 
-# O directamente en una terminal ya abierta
-python -m src.asistente --demo
+python3 -m src.asistente --demo --hablante emmanuel
+python3 -m src.asistente --demo --hablante elioth      # tras calibrar_vm --hablante elioth
+python3 -m src.asistente --demo                        # tras calibrar_vm --todos
+python3 -m src.asistente --demo --sin-evaluacion       # sin matriz al arrancar
 ```
 
 **Que hace `--demo`:**
 
-- Al iniciar: evaluacion offline con **precision por intencion** y **matriz de confusion en matplotlib** (ventana grafica + PNG en `models/matriz_confusion.png`).
-- Banner de bienvenida y estados visibles (`ESCUCHA` → `ACTIVADO` → `COMANDO` → `EJECUTANDO`).
-- Al reconocer *"oye computadora"*: notificacion de escritorio (`notify-send`) y una terminal extra con el mensaje de activacion.
-- Al reconocer un comando: el Bash (`ls -la`, `free -h`, `ps aux`, etc.) corre en **otra terminal nueva** para que se vea en pantalla.
-- En macOS sirve para probar colores; las ventanas extra solo funcionan en Linux.
+- Evaluacion offline y matriz matplotlib al inicio (salvo `--sin-evaluacion`).
+- Estados visibles: `ESCUCHA` → `ACTIVADO` → `COMANDO` → `EJECUTANDO`.
+- En Linux: `notify-send` al activar y Bash en terminal nueva al ejecutar comando.
 
-Para saltar la evaluacion inicial (arranque mas rapido):
-
-```bash
-python -m src.asistente --demo --sin-evaluacion
-```
-
-Requisitos en la VM: emulador de terminal (`gnome-terminal`, `xfce4-terminal`, `konsole` o `xterm`), microfono accesible y, para la grafica, `sudo apt install -y python3-tk` (backend de ventanas de matplotlib).
+Requisitos VM: `python3-tk`, emulador de terminal, microfono.
 
 ### Acceso directo en el menu de Ubuntu
 
