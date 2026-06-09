@@ -1,0 +1,16 @@
+[Unit]
+Description=Asistente de voz LPC+HMM (modo demo)
+After=sound.target pipewire.service pulseaudio.service
+Wants=sound.target
+
+[Service]
+Type=simple
+WorkingDirectory=@RAIZ@
+ExecStart=@RAIZ@/.venv/bin/python -m src.asistente --demo --sin-evaluacion
+Restart=on-failure
+RestartSec=5
+Environment=DISPLAY=:0
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target

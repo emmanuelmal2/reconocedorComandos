@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Asistente de voz LPC+HMM
+GenericName=Reconocimiento de comandos
+Comment=Asistente de voz con activacion — Reconocimiento de Patrones
+Exec=bash -lc 'cd @RAIZ@ && source .venv/bin/activate && python -m src.asistente --demo'
+Icon=utilities-terminal
+Terminal=true
+Categories=Utility;Audio;
+Keywords=voz;asistente;LPC;HMM;

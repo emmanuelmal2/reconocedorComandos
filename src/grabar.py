@@ -210,6 +210,38 @@ def _mostrar_info_grabacion(
     print("=" * 60)
 
 
+def grabar_repeticion(
+    hablante: str,
+    intencion: str,
+    numero_frase: int,
+    frase: str,
+    repeticion: int,
+    carpeta_dataset: Path = CARPETA_DATASET,
+) -> None:
+    """Graba una sola repeticion de una frase (sobrescribe el WAV si existe)."""
+    carpeta_intencion = carpeta_dataset / intencion
+    carpeta_intencion.mkdir(parents=True, exist_ok=True)
+
+    nombre = _nombre_archivo(intencion, hablante, numero_frase, repeticion)
+    ruta_salida = carpeta_intencion / nombre
+
+    _mostrar_info_grabacion(
+        hablante=hablante,
+        intencion=intencion,
+        frase=frase,
+        numero_frase=numero_frase,
+        repeticion=repeticion,
+        total_repeticiones=REPETICIONES_POR_FRASE,
+        ruta_salida=ruta_salida,
+    )
+
+    input("  Presiona Enter para grabar...")
+    print(f"  Grabando {DURACION_GRABACION}s...")
+    audio = grabar_audio()
+    guardar_audio(ruta_salida, audio)
+    print(f"  [ok] Guardado: {ruta_salida}")
+
+
 def grabar_frase(
     hablante: str,
     intencion: str,
@@ -217,30 +249,32 @@ def grabar_frase(
     frase: str,
     carpeta_dataset: Path = CARPETA_DATASET,
     repeticiones: int = REPETICIONES_POR_FRASE,
+    repeticion_unica: int | None = None,
 ) -> None:
-    """Graba todas las repeticiones de una frase para un hablante e intencion."""
+    """Graba repeticiones de una frase para un hablante e intencion."""
     carpeta_intencion = carpeta_dataset / intencion
     carpeta_intencion.mkdir(parents=True, exist_ok=True)
 
-    for repeticion in range(1, repeticiones + 1):
-        nombre = _nombre_archivo(intencion, hablante, numero_frase, repeticion)
-        ruta_salida = carpeta_intencion / nombre
-
-        _mostrar_info_grabacion(
-            hablante=hablante,
-            intencion=intencion,
-            frase=frase,
-            numero_frase=numero_frase,
-            repeticion=repeticion,
-            total_repeticiones=repeticiones,
-            ruta_salida=ruta_salida,
+    if repeticion_unica is not None:
+        grabar_repeticion(
+            hablante,
+            intencion,
+            numero_frase,
+            frase,
+            repeticion_unica,
+            carpeta_dataset,
         )
+        return
 
-        input("  Presiona Enter para grabar...")
-        print(f"  Grabando {DURACION_GRABACION}s...")
-        audio = grabar_audio()
-        guardar_audio(ruta_salida, audio)
-        print(f"  [ok] Guardado: {ruta_salida}")
+    for repeticion in range(1, repeticiones + 1):
+        grabar_repeticion(
+            hablante,
+            intencion,
+            numero_frase,
+            frase,
+            repeticion,
+            carpeta_dataset,
+        )
 
 
 def grabar_intencion(
@@ -313,7 +347,26 @@ def main() -> None:
         action="store_true",
         help="Grabar sin preguntar si emmanuel ya tiene audios",
     )
+    parser.add_argument(
+        "--frase",
+        type=int,
+        choices=range(1, FRASES_POR_INTENCION + 1),
+        metavar="N",
+        help=f"Grabar solo la frase N (1-{FRASES_POR_INTENCION}); requiere --intencion",
+    )
+    parser.add_argument(
+        "--repeticion",
+        type=int,
+        choices=range(1, REPETICIONES_POR_FRASE + 1),
+        metavar="N",
+        help=f"Grabar solo la repeticion N (1-{REPETICIONES_POR_FRASE}); requiere --frase",
+    )
     args = parser.parse_args()
+
+    if args.repeticion and not args.frase:
+        parser.error("--repeticion requiere --frase")
+    if args.frase and not args.intencion:
+        parser.error("--frase requiere --intencion")
 
     intenciones = [args.intencion] if args.intencion else INTENCIONES
 
@@ -326,7 +379,17 @@ def main() -> None:
         print("\n  Grabacion cancelada. Tus audios anteriores se conservan.")
         return
 
-    if args.intencion:
+    if args.frase:
+        intencion = args.intencion
+        frase = FRASES[intencion][args.frase - 1]
+        grabar_frase(
+            hablante,
+            intencion,
+            args.frase,
+            frase,
+            repeticion_unica=args.repeticion,
+        )
+    elif args.intencion:
         grabar_intencion(hablante, args.intencion)
     else:
         grabar_dataset(hablante)

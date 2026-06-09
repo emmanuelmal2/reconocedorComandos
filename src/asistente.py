@@ -30,6 +30,7 @@ from src.demo_linux import (
     ejecutar_comando_en_terminal_nueva,
     es_linux,
 )
+from src.evaluar import evaluar_dataset, mostrar_reporte_demo
 from src.ejecutar import ejecutar_intencion
 from src.grabar import grabar_audio
 from src.predecir import (
@@ -164,10 +165,23 @@ def probar_comando_desde_archivo(ruta_audio: Path, verbose: bool = False) -> Non
         ejecutar_intencion(intencion)
 
 
+def mostrar_evaluacion_demo() -> None:
+    """Evalua el dataset offline y muestra matriz de confusion al iniciar la demo."""
+    consola.titulo("Evaluando modelo sobre el dataset...")
+    consola.info("  (tarda unos segundos; clasifica todos los WAV de dataset/)")
+    try:
+        resultado = evaluar_dataset()
+        mostrar_reporte_demo(resultado, mostrar_grafica=True)
+    except (ValueError, FileNotFoundError) as error:
+        consola.aviso(f"  No se pudo evaluar el dataset: {error}")
+    consola.separador("Asistente en vivo")
+
+
 def ejecutar_flujo_asistente(
     verbose: bool = False,
     una_vez: bool = False,
     demo: bool = False,
+    mostrar_evaluacion: bool = True,
 ) -> None:
     """Bucle principal del asistente de voz."""
     sistema = "macOS (desarrollo)" if sys.platform == "darwin" else "Linux"
@@ -178,6 +192,8 @@ def ejecutar_flujo_asistente(
             f"Margenes: activacion={MARGEN_MINIMO_ACTIVACION}, "
             f"comando={MARGEN_MINIMO_COMANDO}"
         )
+        if mostrar_evaluacion:
+            mostrar_evaluacion_demo()
         if es_linux():
             consola.exito("Modo demo Linux: proceso siempre activo hasta Ctrl+C.")
             consola.info("Al activar con voz se abre una terminal extra (si hay emulador).")
@@ -269,9 +285,14 @@ def main() -> None:
         "--demo",
         action="store_true",
         help=(
-            "Modo presentacion: colores, banner y en Linux abre terminales "
-            "al activar y al ejecutar comandos"
+            "Modo presentacion: colores, banner, matriz de confusion al inicio "
+            "y en Linux abre terminales al activar y al ejecutar comandos"
         ),
+    )
+    parser.add_argument(
+        "--sin-evaluacion",
+        action="store_true",
+        help="En modo --demo, no evaluar el dataset ni mostrar matriz al inicio",
     )
     args = parser.parse_args()
 
@@ -283,6 +304,7 @@ def main() -> None:
         verbose=args.verbose,
         una_vez=args.una_vez,
         demo=args.demo,
+        mostrar_evaluacion=not args.sin_evaluacion,
     )
 
 

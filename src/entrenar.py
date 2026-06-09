@@ -40,25 +40,35 @@ def _listar_archivos_wav(carpeta_intencion: Path) -> list[Path]:
     return sorted(carpeta_intencion.glob("*.wav"))
 
 
+def _recolectar_lpc_de_archivos(
+    archivos_wav: list[Path],
+    verbose: bool = False,
+) -> np.ndarray:
+    """Extrae LPC de una lista explicita de archivos WAV."""
+    secuencias = []
+
+    for ruta_wav in archivos_wav:
+        secuencia = extraer_secuencia_lpc(ruta_wav, verbose=verbose)
+        if len(secuencia) > 0:
+            secuencias.append(secuencia)
+
+    if not secuencias:
+        return np.zeros((0, ORDEN_LPC), dtype=np.float64)
+
+    return np.vstack(secuencias)
+
+
 def _recolectar_lpc_global(
     intenciones: list[str],
     carpeta_dataset: Path = CARPETA_DATASET,
     verbose: bool = False,
 ) -> np.ndarray:
     """Extrae LPC de todos los audios para entrenar el escalador global."""
-    secuencias = []
-
+    archivos: list[Path] = []
     for intencion in intenciones:
         carpeta = carpeta_dataset / intencion
-        for ruta_wav in _listar_archivos_wav(carpeta):
-            secuencia = extraer_secuencia_lpc(ruta_wav, verbose=verbose)
-            if len(secuencia) > 0:
-                secuencias.append(secuencia)
-
-    if not secuencias:
-        return np.zeros((0, ORDEN_LPC), dtype=np.float64)
-
-    return np.vstack(secuencias)
+        archivos.extend(_listar_archivos_wav(carpeta))
+    return _recolectar_lpc_de_archivos(archivos, verbose=verbose)
 
 
 def entrenar_escalador_global(
@@ -177,6 +187,52 @@ def entrenar_modelo_intencion(
     print(f"  Modelo guardado: {ruta_modelo}")
 
     return modelo
+
+
+def entrenar_modelos_en_memoria(
+    archivos_por_intencion: dict[str, list[Path]],
+    intenciones: list[str] | None = None,
+    verbose: bool = False,
+) -> tuple[StandardScaler, dict[str, GaussianHMM]]:
+    """
+    Entrena escalador y HMMs en memoria sin guardar en disco.
+
+    Util para evaluacion holdout (train/test split) sin pisar models/*.pkl.
+    """
+    if intenciones is None:
+        intenciones = INTENCIONES
+
+    archivos_entrenamiento: list[Path] = []
+    for intencion in intenciones:
+        archivos_entrenamiento.extend(archivos_por_intencion.get(intencion, []))
+
+    X_todos = _recolectar_lpc_de_archivos(archivos_entrenamiento, verbose=verbose)
+    if len(X_todos) == 0:
+        raise ValueError("No hay bloques LPC en la particion de entrenamiento.")
+
+    escalador = StandardScaler()
+    escalador.fit(X_todos)
+
+    modelos: dict[str, GaussianHMM] = {}
+    for intencion in intenciones:
+        archivos = archivos_por_intencion.get(intencion, [])
+        if not archivos:
+            continue
+
+        X, longitudes = construir_datos_entrenamiento(archivos, escalador, verbose=verbose)
+        if len(longitudes) == 0:
+            continue
+
+        modelo = GaussianHMM(
+            n_components=HMM_N_COMPONENTS,
+            covariance_type=HMM_COVARIANCE_TYPE,
+            n_iter=HMM_N_ITER,
+            random_state=HMM_RANDOM_STATE,
+        )
+        modelo.fit(X, longitudes)
+        modelos[intencion] = modelo
+
+    return escalador, modelos
 
 
 def entrenar_todas_intenciones(

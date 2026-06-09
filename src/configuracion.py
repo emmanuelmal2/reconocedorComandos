@@ -96,3 +96,10 @@ HMM_RANDOM_STATE = 42
 MARGEN_MINIMO_ACTIVACION = 25
 MARGEN_MINIMO_COMANDO = 35
 MAX_REINTENTOS_COMANDO = 2
+
+# Evaluacion holdout (train/test split estratificado)
+HOLDOUT_TEST_SIZE = 0.2
+HOLDOUT_RANDOM_STATE = 42
+
+# Intenciones sugeridas para re-grabar audios mal clasificados
+INTENCIONES_REGRABAR_SUGERIDAS = ["memoria", "listar"]

@@ -16,6 +16,7 @@ from pathlib import Path
 import joblib
 import numpy as np
 from hmmlearn.hmm import GaussianHMM
+from sklearn.preprocessing import StandardScaler
 
 from src.caracteristicas import extraer_secuencia_lpc, procesar_senal_lpc
 from src.configuracion import CARPETA_MODELOS, INTENCIONES
@@ -118,6 +119,49 @@ def es_prediccion_confiable(
     return confiable, margen, primero, segundo
 
 
+def predecir_intencion_desde_lpc_con_modelos(
+    secuencia_lpc: np.ndarray,
+    escalador: StandardScaler,
+    modelos: dict[str, GaussianHMM],
+    intenciones_permitidas: list[str] | None = None,
+    intenciones_excluidas: list[str] | None = None,
+) -> tuple[str, dict[str, float]]:
+    """Predice intencion con escalador y modelos ya cargados en memoria."""
+    modelos = _filtrar_modelos(modelos, intenciones_permitidas, intenciones_excluidas)
+
+    if not modelos:
+        raise RuntimeError("No hay modelos HMM disponibles para la prediccion.")
+
+    if len(secuencia_lpc) == 0:
+        raise ValueError("La secuencia LPC esta vacia.")
+
+    X = escalador.transform(secuencia_lpc)
+    puntajes = calcular_puntajes_modelos(X, modelos)
+    intencion_predicha = max(puntajes, key=puntajes.get)
+    return intencion_predicha, puntajes
+
+
+def predecir_intencion_con_modelos(
+    ruta_audio: str | Path,
+    escalador: StandardScaler,
+    modelos: dict[str, GaussianHMM],
+    intenciones_permitidas: list[str] | None = None,
+    intenciones_excluidas: list[str] | None = None,
+    verbose: bool = False,
+) -> tuple[str, dict[str, float]]:
+    """Predice intencion de un WAV usando modelos en memoria (sin leer models/*.pkl)."""
+    secuencia_lpc = extraer_secuencia_lpc(ruta_audio, verbose=verbose)
+    if len(secuencia_lpc) == 0:
+        raise ValueError(f"No se extrajeron bloques LPC validos de {ruta_audio}.")
+    return predecir_intencion_desde_lpc_con_modelos(
+        secuencia_lpc,
+        escalador,
+        modelos,
+        intenciones_permitidas=intenciones_permitidas,
+        intenciones_excluidas=intenciones_excluidas,
+    )
+
+
 def predecir_intencion_desde_lpc(
     secuencia_lpc: np.ndarray,
     carpeta_modelos: Path = CARPETA_MODELOS,
@@ -130,19 +174,13 @@ def predecir_intencion_desde_lpc(
     """
     escalador = cargar_escalador(carpeta_modelos)
     modelos = cargar_modelos(carpeta_modelos)
-    modelos = _filtrar_modelos(modelos, intenciones_permitidas, intenciones_excluidas)
-
-    if not modelos:
-        raise RuntimeError("No hay modelos HMM disponibles para la prediccion.")
-
-    if len(secuencia_lpc) == 0:
-        raise ValueError("La secuencia LPC esta vacia.")
-
-    X = escalador.transform(secuencia_lpc)
-    puntajes = calcular_puntajes_modelos(X, modelos)
-    intencion_predicha = max(puntajes, key=puntajes.get)
-
-    return intencion_predicha, puntajes
+    return predecir_intencion_desde_lpc_con_modelos(
+        secuencia_lpc,
+        escalador,
+        modelos,
+        intenciones_permitidas=intenciones_permitidas,
+        intenciones_excluidas=intenciones_excluidas,
+    )
 
 
 def predecir_intencion(

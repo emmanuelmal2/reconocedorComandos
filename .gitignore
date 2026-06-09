@@ -22,6 +22,8 @@ build/
 
 # Modelos entrenados (se regeneran con: python -m src.entrenar)
 models/*.pkl
+models/matriz_confusion.png
+models/matriz_confusion_holdout.png
 
 # Practicas locales (muy pesado, no necesario en GitHub)
 practicas_pasadas/

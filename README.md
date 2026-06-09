@@ -51,9 +51,14 @@ ReconocimientoPatrones/
 │   ├── asistente.py
 │   ├── consola.py
 │   ├── demo_linux.py
+│   ├── regrabar_fallos.py
 │   └── ejecutar.py
 ├── scripts/
-│   └── iniciar_demo_linux.sh
+│   ├── iniciar_demo_linux.sh
+│   ├── instalar_acceso_directo_linux.sh
+│   ├── instalar_servicio_linux.sh
+│   ├── reconocedor-comandos.desktop
+│   └── reconocedor-comandos.service
 └── requirements.txt
 ```
 
@@ -150,7 +155,35 @@ Genera `models/escalador.pkl` y un HMM por intencion (`activacion.pkl`, `listar.
 
 ```bash
 python -m src.evaluar
+python -m src.evaluar --grafica
+
+# Metrica mas honesta: entrena en 80% y evalua en 20% (holdout)
+python -m src.evaluar --holdout
+python -m src.evaluar --holdout --grafica
+
+# Solo listar audios mal clasificados
+python -m src.evaluar --solo-fallos
 ```
+
+La evaluacion normal usa los modelos ya guardados sobre **todo** el dataset (optimista).
+`--holdout` entrena modelos temporales en memoria sin pisar `models/*.pkl`.
+
+### Re-grabar audios flojos (memoria, listar, etc.)
+
+Detecta WAV mal clasificados y permite re-grabarlos uno por uno:
+
+```bash
+python -m src.regrabar_fallos --hablante emmanuel
+python -m src.regrabar_fallos --hablante emmanuel --intenciones memoria listar --forzar
+```
+
+Re-grabar una toma concreta:
+
+```bash
+python -m src.grabar --hablante emmanuel --intencion memoria --frase 1 --repeticion 2
+```
+
+Despues de re-grabar: `python -m src.entrenar`
 
 ### Probar un audio
 
@@ -187,12 +220,37 @@ python -m src.asistente --demo
 
 **Que hace `--demo`:**
 
+- Al iniciar: evaluacion offline con **precision por intencion** y **matriz de confusion en matplotlib** (ventana grafica + PNG en `models/matriz_confusion.png`).
 - Banner de bienvenida y estados visibles (`ESCUCHA` → `ACTIVADO` → `COMANDO` → `EJECUTANDO`).
 - Al reconocer *"oye computadora"*: notificacion de escritorio (`notify-send`) y una terminal extra con el mensaje de activacion.
 - Al reconocer un comando: el Bash (`free -h`, `ip addr`, etc.) corre en **otra terminal nueva** para que se vea en pantalla.
 - En macOS sirve para probar colores; las ventanas extra solo funcionan en Linux.
 
-Requisitos en la VM: emulador de terminal (`gnome-terminal`, `xfce4-terminal`, `konsole` o `xterm`) y microfono accesible desde la VM.
+Para saltar la evaluacion inicial (arranque mas rapido):
+
+```bash
+python -m src.asistente --demo --sin-evaluacion
+```
+
+Requisitos en la VM: emulador de terminal (`gnome-terminal`, `xfce4-terminal`, `konsole` o `xterm`), microfono accesible y, para la grafica, `sudo apt install -y python3-tk` (backend de ventanas de matplotlib).
+
+### Acceso directo en el menu de Ubuntu
+
+```bash
+./scripts/instalar_acceso_directo_linux.sh
+```
+
+Crea un icono **Asistente de voz LPC+HMM** en el menu de aplicaciones.
+
+### Servicio systemd (asistente siempre activo)
+
+```bash
+./scripts/instalar_servicio_linux.sh
+systemctl --user start reconocedor-comandos
+```
+
+El servicio corre `asistente --demo --sin-evaluacion` en segundo plano (sin bloquear en la grafica inicial).
+Ver logs: `journalctl --user -u reconocedor-comandos -f`
 
 ---
 
