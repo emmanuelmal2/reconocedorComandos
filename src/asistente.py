@@ -19,6 +19,7 @@ from pathlib import Path
 from src.configuracion import (
     FRASES_DEMO,
     HABLANTES,
+    HABLANTE_PREDETERMINADO,
     INTENCIONES,
     INTENCIONES_EJECUTABLES,
     MARGEN_MINIMO_ACTIVACION,
@@ -249,7 +250,8 @@ def ejecutar_flujo_asistente(
             consola.info("Confirmacion antes de ejecutar: activada")
         if es_linux() and hablante is None:
             consola.aviso(
-                "En la VM calibra ambos: python3 -m src.calibrar_vm --todos"
+                f"En la VM usa solo quien calibro: python3 -m src.calibrar_vm "
+                f"--hablante {HABLANTE_PREDETERMINADO}"
             )
         if mostrar_evaluacion:
             mostrar_evaluacion_demo()
@@ -407,6 +409,11 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    # En la VM solo Emmanuel calibra en vivo; evitar mezclar modelos de Elioth (Mac).
+    hablante = args.hablante
+    if hablante is None and args.demo and es_linux():
+        hablante = HABLANTE_PREDETERMINADO
+
     if args.probar_comando:
         probar_comando_desde_archivo(args.probar_comando, verbose=args.verbose)
         return
@@ -418,7 +425,7 @@ def main() -> None:
         mostrar_evaluacion=not args.sin_evaluacion,
         margen_comando=args.margen_comando,
         margen_comando_tercero=args.margen_comando_tercero,
-        hablante=args.hablante,
+        hablante=hablante,
         confirmar_comando=args.confirmar,
     )
 

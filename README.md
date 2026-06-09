@@ -44,16 +44,11 @@ pip install -r requirements.txt
 # Los .pkl no van en git: hay que entrenar una vez en la VM
 python3 -m src.entrenar
 
-# OBLIGATORIO en la VM: re-grabar con el microfono de la expo
-# Los dos hablantes (recomendado si presentan emmanuel y elioth):
-python3 -m src.calibrar_vm --todos
+# Calibracion en la VM: solo Emmanuel re-graba (Elioth ya no puede; sus WAV del repo se conservan)
+python3 -m src.calibrar_vm --hablante emmanuel
 
-# Solo quien vaya a hablar en vivo:
-# python3 -m src.calibrar_vm --hablante emmanuel
-# python3 -m src.asistente --demo --hablante emmanuel
-
-# Demo con ambas voces (tras --todos):
-python3 -m src.asistente --demo
+# Demo en vivo: solo modelos de Emmanuel (micro de la VM)
+python3 -m src.asistente --demo --hablante emmanuel
 # o: ./scripts/iniciar_demo_linux.sh
 ```
 
@@ -111,32 +106,35 @@ Ejemplo: `dataset/memoria/memoria_elioth_frase01_rep03.wav`
 
 ---
 
-## Instrucciones para Elioth (segundo hablante)
+## Elioth y la demo en vivo
 
-El repo incluye audios de **emmanuel** y **elioth**. En la **VM de la expo** ambos deben calibrar con el micro de esa maquina:
+Los **40 audios de Elioth siguen en el repo** (`*_elioth_*.wav`). Sirven para:
+
+- entrenar el escalador y los HMM (evaluacion offline ~97 %)
+- el reporte academico / matriz de confusion
+
+**Elioth no necesita volver a grabar.** Si no puede estar en la VM, no pasa nada.
+
+En la **exposicion en vivo** solo habla **Emmanuel** con el micro de la VM:
 
 ```bash
-git pull
-source .venv/bin/activate
-
-# Opcion A: los dos seguidos (~10 min)
-python3 -m src.calibrar_vm --todos
-
-# Opcion B: uno cada uno (entrenar al final del segundo)
-python3 -m src.calibrar_vm --hablante emmanuel
-python3 -m src.calibrar_vm --hablante elioth
+python3 -m src.calibrar_vm --hablante emmanuel   # solo sobrescribe *_emmanuel_*.wav
+python3 -m src.asistente --demo --hablante emmanuel
 ```
 
-Demo con **las dos voces** (max-pooling, como en entrenamiento):
+Importante: sin `--hablante emmanuel`, el sistema mezcla modelos de Elioth (grabados en Mac) y puede clasificar mal en el micro de la VM.
+
+Si algun dia **los dos** pueden grabar en la misma VM: `python3 -m src.calibrar_vm --todos` y demo sin `--hablante`.
+
+---
+
+## Instrucciones para Elioth (dataset en GitHub)
+
+Sus audios **ya estan en el repo**; no hace falta grabar de nuevo salvo que quieran mejorar una toma desde Mac:
 
 ```bash
-python3 -m src.asistente --demo
-```
-
-Si solo presenta uno en vivo:
-
-```bash
-python3 -m src.asistente --demo --hablante elioth
+python -m src.grabar --hablante elioth --intencion memoria --frase 1 --repeticion 1 --forzar
+python -m src.entrenar
 ```
 
 ---

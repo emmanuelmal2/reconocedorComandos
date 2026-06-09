@@ -63,6 +63,7 @@ def calibrar_hablante(
             grabar_repeticion(hablante, intencion, numero_frase, frase, repeticion)
 
     print(f"\n  [ok] {hablante}: {total} audios guardados en dataset/")
+    print(f"  (Los audios de otros hablantes en dataset/ no se modifican.)")
 
 
 def entrenar_y_evaluar(*, evaluar: bool = True) -> None:
@@ -102,8 +103,10 @@ def calibrar(
     print("=" * 60)
     if len(hablantes) == 1:
         h = hablantes[0]
-        print(f"  Demo solo con la voz de {h}:")
+        print(f"  Audios de Elioth en el repo se conservan (entrenamiento / evaluacion offline).")
+        print(f"  En la expo en vivo habla {h} y usa solo sus modelos:")
         print(f"    python3 -m src.asistente --demo --hablante {h}")
+        print(f"  o: ./scripts/iniciar_demo_linux.sh")
     else:
         print("  Demo con AMBAS voces (elige el mejor HMM por intencion):")
         print("    python3 -m src.asistente --demo")
