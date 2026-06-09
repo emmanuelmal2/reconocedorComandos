@@ -49,7 +49,11 @@ ReconocimientoPatrones/
 │   ├── predecir.py
 │   ├── evaluar.py
 │   ├── asistente.py
+│   ├── consola.py
+│   ├── demo_linux.py
 │   └── ejecutar.py
+├── scripts/
+│   └── iniciar_demo_linux.sh
 └── requirements.txt
 ```
 
@@ -168,6 +172,27 @@ python -m src.asistente --probar-comando dataset/red/red_emmanuel_frase01_rep01.
 1. Di frase de activacion (*"oye computadora"*).
 2. Si detecta `activacion`, di un comando (*"muestra la memoria"*, etc.).
 3. Ejecuta Bash solo para: `listar`, `memoria`, `disco`, `red`, `procesos`.
+
+### Modo demo (presentacion en Linux / VM)
+
+Para la exposicion: proceso **siempre activo** (bucle hasta Ctrl+C), consola con colores y, en Linux, ventanas de terminal que se abren al activar y al ejecutar comandos.
+
+```bash
+# Opcion recomendada en la VM (abre gnome-terminal / xfce4-terminal si hay GUI)
+./scripts/iniciar_demo_linux.sh
+
+# O directamente en una terminal ya abierta
+python -m src.asistente --demo
+```
+
+**Que hace `--demo`:**
+
+- Banner de bienvenida y estados visibles (`ESCUCHA` → `ACTIVADO` → `COMANDO` → `EJECUTANDO`).
+- Al reconocer *"oye computadora"*: notificacion de escritorio (`notify-send`) y una terminal extra con el mensaje de activacion.
+- Al reconocer un comando: el Bash (`free -h`, `ip addr`, etc.) corre en **otra terminal nueva** para que se vea en pantalla.
+- En macOS sirve para probar colores; las ventanas extra solo funcionan en Linux.
+
+Requisitos en la VM: emulador de terminal (`gnome-terminal`, `xfce4-terminal`, `konsole` o `xterm`) y microfono accesible desde la VM.
 
 ---
 

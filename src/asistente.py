@@ -13,6 +13,7 @@ Flujo:
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
 from src.configuracion import (
@@ -22,6 +23,12 @@ from src.configuracion import (
     MARGEN_MINIMO_ACTIVACION,
     MARGEN_MINIMO_COMANDO,
     MAX_REINTENTOS_COMANDO,
+)
+from src import consola
+from src.demo_linux import (
+    abrir_terminal_activacion,
+    ejecutar_comando_en_terminal_nueva,
+    es_linux,
 )
 from src.ejecutar import ejecutar_intencion
 from src.grabar import grabar_audio
@@ -49,15 +56,20 @@ def mostrar_frases_red() -> None:
         print(f"    {i}. \"{frase}\"")
 
 
-def escuchar_activacion(verbose: bool = False) -> bool:
+def escuchar_activacion(verbose: bool = False, demo: bool = False) -> bool:
     """
     Graba audio y verifica activacion con margen minimo de confianza.
 
     Returns:
         True si se detecto activacion confiable.
     """
-    print("\n=== Escuchando frase de activacion ===")
+    if demo:
+        consola.estado("escucha")
+    else:
+        print("\n=== Escuchando frase de activacion ===")
     print('  Di por ejemplo: "oye computadora" o "hola computadora"')
+    if demo:
+        consola.info("  Presiona Enter cuando vayas a hablar...")
     input("  Presiona Enter para grabar...")
 
     senal = grabar_audio()
@@ -80,11 +92,20 @@ def escuchar_activacion(verbose: bool = False) -> bool:
         )
         return False
 
-    print(f"  Activacion confiable (margen {margen:.1f}).")
+    if demo:
+        consola.exito(f"  Activacion confiable (margen {margen:.1f}).")
+        consola.banner_activacion()
+        if es_linux():
+            if abrir_terminal_activacion():
+                consola.info("  Se abrio una ventana de terminal (activacion).")
+            else:
+                consola.aviso("  No se pudo abrir terminal extra (sigue en esta ventana).")
+    else:
+        print(f"  Activacion confiable (margen {margen:.1f}).")
     return True
 
 
-def escuchar_comando(verbose: bool = False) -> tuple[str | None, dict[str, float]]:
+def escuchar_comando(verbose: bool = False, demo: bool = False) -> tuple[str | None, dict[str, float]]:
     """
     Graba y predice comando con reintentos si la confianza es baja.
 
@@ -95,7 +116,10 @@ def escuchar_comando(verbose: bool = False) -> tuple[str | None, dict[str, float
     mostrar_frases_red()
 
     for intento in range(1, MAX_REINTENTOS_COMANDO + 1):
-        print(f"\n=== Escuchando comando (intento {intento}/{MAX_REINTENTOS_COMANDO}) ===")
+        if demo:
+            consola.estado("comando")
+        else:
+            print(f"\n=== Escuchando comando (intento {intento}/{MAX_REINTENTOS_COMANDO}) ===")
         input("  Presiona Enter y habla al instante...")
         senal = grabar_audio()
 
@@ -140,42 +164,87 @@ def probar_comando_desde_archivo(ruta_audio: Path, verbose: bool = False) -> Non
         ejecutar_intencion(intencion)
 
 
-def ejecutar_flujo_asistente(verbose: bool = False, una_vez: bool = False) -> None:
+def ejecutar_flujo_asistente(
+    verbose: bool = False,
+    una_vez: bool = False,
+    demo: bool = False,
+) -> None:
     """Bucle principal del asistente de voz."""
-    print("Asistente de voz iniciado.")
-    print("Intenciones ejecutables:", ", ".join(INTENCIONES_EJECUTABLES))
-    print(
-        f"Margenes minimos: activacion={MARGEN_MINIMO_ACTIVACION}, "
-        f"comando={MARGEN_MINIMO_COMANDO}"
-    )
+    sistema = "macOS (desarrollo)" if sys.platform == "darwin" else "Linux"
+
+    if demo:
+        consola.banner_inicio(sistema, INTENCIONES_EJECUTABLES)
+        consola.info(
+            f"Margenes: activacion={MARGEN_MINIMO_ACTIVACION}, "
+            f"comando={MARGEN_MINIMO_COMANDO}"
+        )
+        if es_linux():
+            consola.exito("Modo demo Linux: proceso siempre activo hasta Ctrl+C.")
+            consola.info("Al activar con voz se abre una terminal extra (si hay emulador).")
+        else:
+            consola.aviso("Modo demo en Mac: sin ventanas extra (usa la VM Linux para la demo).")
+    else:
+        print("Asistente de voz iniciado.")
+        print("Intenciones ejecutables:", ", ".join(INTENCIONES_EJECUTABLES))
+        print(
+            f"Margenes minimos: activacion={MARGEN_MINIMO_ACTIVACION}, "
+            f"comando={MARGEN_MINIMO_COMANDO}"
+        )
 
     while True:
-        if not escuchar_activacion(verbose=verbose):
+        if not escuchar_activacion(verbose=verbose, demo=demo):
             if una_vez:
                 break
             continue
 
-        print("\nActivacion detectada. Di un comando.")
-        intencion, puntajes = escuchar_comando(verbose=verbose)
+        if demo:
+            consola.estado("activo")
+        else:
+            print("\nActivacion detectada. Di un comando.")
+        intencion, puntajes = escuchar_comando(verbose=verbose, demo=demo)
 
         if intencion is None:
             if una_vez:
                 break
-            print("\n--- Volviendo a modo escucha ---")
+            if demo:
+                consola.separador("Volviendo a modo escucha")
+            else:
+                print("\n--- Volviendo a modo escucha ---")
             continue
 
         if intencion in INTENCIONES_EJECUTABLES:
-            print(f"\nComando reconocido: {intencion}")
-            codigo = ejecutar_intencion(intencion)
+            if demo:
+                consola.estado("ejecutando")
+                consola.exito(f"Comando reconocido: {intencion}")
+            else:
+                print(f"\nComando reconocido: {intencion}")
+
+            if demo and es_linux() and ejecutar_comando_en_terminal_nueva(intencion):
+                consola.exito("Comando lanzado en una terminal nueva.")
+                codigo = 0
+            else:
+                codigo = ejecutar_intencion(intencion)
+
             if codigo != 0:
-                print(f"[aviso] El comando termino con codigo {codigo}.")
+                msg = f"El comando termino con codigo {codigo}."
+                if demo:
+                    consola.aviso(msg)
+                else:
+                    print(f"[aviso] {msg}")
         else:
-            print(f"\nIntencion '{intencion}' no esta en la lista de comandos ejecutables.")
+            msg = f"Intencion '{intencion}' no esta en la lista de comandos ejecutables."
+            if demo:
+                consola.aviso(msg)
+            else:
+                print(f"\n{msg}")
 
         if una_vez:
             break
 
-        print("\n--- Volviendo a modo escucha ---")
+        if demo:
+            consola.separador("Volviendo a modo escucha")
+        else:
+            print("\n--- Volviendo a modo escucha ---")
 
 
 def main() -> None:
@@ -196,13 +265,25 @@ def main() -> None:
         metavar="AUDIO.wav",
         help="Prueba un comando desde archivo WAV (sin microfono)",
     )
+    parser.add_argument(
+        "--demo",
+        action="store_true",
+        help=(
+            "Modo presentacion: colores, banner y en Linux abre terminales "
+            "al activar y al ejecutar comandos"
+        ),
+    )
     args = parser.parse_args()
 
     if args.probar_comando:
         probar_comando_desde_archivo(args.probar_comando, verbose=args.verbose)
         return
 
-    ejecutar_flujo_asistente(verbose=args.verbose, una_vez=args.una_vez)
+    ejecutar_flujo_asistente(
+        verbose=args.verbose,
+        una_vez=args.una_vez,
+        demo=args.demo,
+    )
 
 
 if __name__ == "__main__":

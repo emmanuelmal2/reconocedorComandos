@@ -45,6 +45,13 @@ def _comandos_del_sistema() -> dict[str, list[str]]:
     return COMANDOS_LINUX
 
 
+def obtener_argumentos_comando(intencion: str) -> list[str]:
+    """Devuelve la lista de argumentos del comando Bash para una intencion."""
+    if intencion not in INTENCIONES_EJECUTABLES:
+        raise ValueError(f"Intencion no ejecutable: {intencion}")
+    return list(_comandos_del_sistema()[intencion])
+
+
 def ejecutar_intencion(intencion: str) -> int:
     """
     Ejecuta el comando Bash asociado a una intencion.
@@ -56,9 +63,7 @@ def ejecutar_intencion(intencion: str) -> int:
         print(f"[aviso] La intencion '{intencion}' no tiene comando Bash asociado.")
         return 1
 
-    comandos = _comandos_del_sistema()
-    argumentos = comandos[intencion]
-
+    argumentos = obtener_argumentos_comando(intencion)
     sistema = "macOS" if sys.platform == "darwin" else "Linux"
     print(f"\nEjecutando ({sistema}): {' '.join(argumentos)}")
 
