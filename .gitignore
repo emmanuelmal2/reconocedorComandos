@@ -1,0 +1,36 @@
+# Entorno virtual (cada quien crea el suyo)
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Sistema / IDE
+.DS_Store
+.idea/
+.vscode/
+.cursor/
+
+# Modelos entrenados (se regeneran con: python -m src.entrenar)
+models/*.pkl
+
+# Practicas locales (muy pesado, no necesario en GitHub)
+practicas_pasadas/
+
+# Temporales
+*.log
+*.tmp
+*.swp
+
+# Audios fuera del dataset (grabaciones sueltas)
+*.wav
+!dataset/**/*.wav

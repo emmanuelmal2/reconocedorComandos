@@ -1,0 +1,8 @@
+numpy
+scipy
+soundfile
+sounddevice
+hmmlearn
+joblib
+scikit-learn
+matplotlib
