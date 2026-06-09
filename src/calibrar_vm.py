@@ -6,12 +6,16 @@ El dataset del repo se grabo en otro equipo/microfono. En vivo los comandos
 que usaras en la presentacion.
 
 Este script:
-    1. Graba las 4 frases activas x N repeticiones para un hablante
-    2. Re-entrena los modelos
+    1. Graba las 4 frases activas x N repeticiones por hablante
+    2. Re-entrena los modelos (8 HMM: 4 intenciones x 2 hablantes)
     3. Muestra accuracy offline
 
-Uso en la VM (5 minutos antes de la expo):
+Uso en la VM antes de la expo (recomendado: los dos hablantes):
+    python3 -m src.calibrar_vm --todos
+
+Solo una persona presenta:
     python3 -m src.calibrar_vm --hablante emmanuel
+    python3 -m src.asistente --demo --hablante emmanuel
 """
 
 from __future__ import annotations
@@ -31,51 +35,79 @@ from src.configuracion import (
 from src.grabar import grabar_repeticion
 
 
-def calibrar(
+def calibrar_hablante(
     hablante: str,
     repeticiones: int = REPETICIONES_POR_FRASE,
-    *,
-    entrenar: bool = True,
-    evaluar: bool = True,
 ) -> None:
-    """Graba frases activas en este microfono y opcionalmente re-entrena."""
+    """Graba las frases activas de un hablante en este microfono."""
     total = len(INTENCIONES) * repeticiones
     print("\n" + "=" * 60)
-    print("  CALIBRACION DE MICROFONO PARA LA DEMO")
+    print(f"  CALIBRACION — hablante: {hablante}")
     print("=" * 60)
-    print(f"  Hablante    : {hablante}")
     print(f"  Intenciones : {', '.join(INTENCIONES)}")
-    print(f"  Repeticiones: {repeticiones} por frase")
-    print(f"  Total WAV   : {total}")
+    print(f"  Repeticiones: {repeticiones} por frase ({total} WAV)")
     print()
-    print("  IMPORTANTE: usa el mismo microfono y distancia que en la expo.")
-    print("  Di cada frase EXACTA cuando suene el beep.")
+    print("  Usa el mismo microfono y distancia que en la expo.")
+    print("  Di cada frase EXACTA al oir el beep.")
     print("=" * 60)
 
-    if not _confirmar("¿Listo para empezar?"):
-        print("  Calibracion cancelada.")
+    if not _confirmar(f"¿{hablante} listo para grabar?"):
+        print(f"  Calibracion de {hablante} omitida.")
         return
 
     for intencion in INTENCIONES:
         numero_frase = FRASE_INDICE_POR_INTENCION[intencion]
         frase = FRASES[intencion][0]
-        print(f"\n>>> Intencion: {intencion} — di: \"{frase}\"")
+        print(f'\n>>> [{hablante}] {intencion} — di: "{frase}"')
         for repeticion in range(1, repeticiones + 1):
             grabar_repeticion(hablante, intencion, numero_frase, frase, repeticion)
 
-    if entrenar:
-        print("\n  Re-entrenando modelos con tus audios de esta maquina...")
-        subprocess.run([sys.executable, "-m", "src.entrenar"], check=True)
+    print(f"\n  [ok] {hablante}: {total} audios guardados en dataset/")
 
+
+def entrenar_y_evaluar(*, evaluar: bool = True) -> None:
+    print("\n  Re-entrenando modelos (emmanuel + elioth en este microfono)...")
+    subprocess.run([sys.executable, "-m", "src.entrenar"], check=True)
     if evaluar:
         print("\n  Evaluacion offline (deberia quedar cerca de 97%):")
         subprocess.run([sys.executable, "-m", "src.evaluar"], check=False)
 
+
+def calibrar(
+    hablantes: list[str],
+    repeticiones: int = REPETICIONES_POR_FRASE,
+    *,
+    entrenar: bool = True,
+    evaluar: bool = True,
+) -> None:
+    """Graba uno o varios hablantes y opcionalmente re-entrena."""
+    if not hablantes:
+        print("  Nada que calibrar.")
+        return
+
+    print("\n" + "#" * 60)
+    print("  CALIBRACION DE MICROFONO PARA LA DEMO")
+    print("#" * 60)
+    print(f"  Hablantes   : {', '.join(hablantes)}")
+    print(f"  Total WAV   : {len(hablantes) * len(INTENCIONES) * repeticiones}")
+
+    for hablante in hablantes:
+        calibrar_hablante(hablante, repeticiones=repeticiones)
+
+    if entrenar:
+        entrenar_y_evaluar(evaluar=evaluar)
+
     print("\n" + "=" * 60)
     print("  CALIBRACION LISTA")
     print("=" * 60)
-    print(f"  Arranca la demo con TU voz y modelos de {hablante}:")
-    print(f"    python3 -m src.asistente --demo --hablante {hablante}")
+    if len(hablantes) == 1:
+        h = hablantes[0]
+        print(f"  Demo solo con la voz de {h}:")
+        print(f"    python3 -m src.asistente --demo --hablante {h}")
+    else:
+        print("  Demo con AMBAS voces (elige el mejor HMM por intencion):")
+        print("    python3 -m src.asistente --demo")
+        print("  o: ./scripts/iniciar_demo_linux.sh")
     print("=" * 60)
 
 
@@ -96,8 +128,12 @@ def main() -> None:
     parser.add_argument(
         "--hablante",
         choices=HABLANTES,
-        default=HABLANTE_PREDETERMINADO,
-        help=f"Hablante que presentara (default: {HABLANTE_PREDETERMINADO})",
+        help="Calibrar solo un hablante (emmanuel o elioth)",
+    )
+    parser.add_argument(
+        "--todos",
+        action="store_true",
+        help="Calibrar emmanuel y elioth (recomendado si presentan los dos)",
     )
     parser.add_argument(
         "--repeticiones",
@@ -120,8 +156,18 @@ def main() -> None:
     if not 1 <= args.repeticiones <= REPETICIONES_POR_FRASE:
         parser.error(f"--repeticiones debe estar entre 1 y {REPETICIONES_POR_FRASE}")
 
+    if args.todos and args.hablante:
+        parser.error("Usa --todos o --hablante, no ambos.")
+
+    if args.todos:
+        hablantes = list(HABLANTES)
+    elif args.hablante:
+        hablantes = [args.hablante]
+    else:
+        hablantes = [HABLANTE_PREDETERMINADO]
+
     calibrar(
-        args.hablante,
+        hablantes,
         repeticiones=args.repeticiones,
         entrenar=not args.sin_entrenar,
         evaluar=not args.sin_evaluar,

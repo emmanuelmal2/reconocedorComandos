@@ -44,11 +44,16 @@ pip install -r requirements.txt
 # Los .pkl no van en git: hay que entrenar una vez en la VM
 python3 -m src.entrenar
 
-# OBLIGATORIO en la VM: re-grabar con el microfono de la expo (~5 min)
-python3 -m src.calibrar_vm --hablante emmanuel
+# OBLIGATORIO en la VM: re-grabar con el microfono de la expo
+# Los dos hablantes (recomendado si presentan emmanuel y elioth):
+python3 -m src.calibrar_vm --todos
 
-# Demo (usa modelos de emmanuel en Linux por defecto)
-python3 -m src.asistente --demo --hablante emmanuel
+# Solo quien vaya a hablar en vivo:
+# python3 -m src.calibrar_vm --hablante emmanuel
+# python3 -m src.asistente --demo --hablante emmanuel
+
+# Demo con ambas voces (tras --todos):
+python3 -m src.asistente --demo
 # o: ./scripts/iniciar_demo_linux.sh
 ```
 
@@ -108,20 +113,30 @@ Ejemplo: `dataset/memoria/memoria_elioth_frase01_rep03.wav`
 
 ## Instrucciones para Elioth (segundo hablante)
 
-El repo ya incluye audios de **emmanuel** y **elioth** (40 WAV en total). Tras clonar:
+El repo incluye audios de **emmanuel** y **elioth**. En la **VM de la expo** ambos deben calibrar con el micro de esa maquina:
 
 ```bash
 git pull
 source .venv/bin/activate
-python3 -m src.entrenar
-python3 -m src.evaluar --grafica
+
+# Opcion A: los dos seguidos (~10 min)
+python3 -m src.calibrar_vm --todos
+
+# Opcion B: uno cada uno (entrenar al final del segundo)
+python3 -m src.calibrar_vm --hablante emmanuel
+python3 -m src.calibrar_vm --hablante elioth
 ```
 
-Para re-grabar alguna toma tuya:
+Demo con **las dos voces** (max-pooling, como en entrenamiento):
 
 ```bash
-python -m src.grabar --hablante elioth --forzar
-python -m src.entrenar
+python3 -m src.asistente --demo
+```
+
+Si solo presenta uno en vivo:
+
+```bash
+python3 -m src.asistente --demo --hablante elioth
 ```
 
 ---

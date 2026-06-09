@@ -19,7 +19,6 @@ from pathlib import Path
 from src.configuracion import (
     FRASES_DEMO,
     HABLANTES,
-    HABLANTE_PREDETERMINADO,
     INTENCIONES,
     INTENCIONES_EJECUTABLES,
     MARGEN_MINIMO_ACTIVACION,
@@ -245,12 +244,12 @@ def ejecutar_flujo_asistente(
         if hablante:
             consola.info(f"Modelos solo del hablante: {hablante}")
         else:
-            consola.info("Modelos: mejor score entre emmanuel y elioth")
+            consola.info("Modelos: mejor score entre emmanuel y elioth (ambas voces)")
         if confirmar_comando:
             consola.info("Confirmacion antes de ejecutar: activada")
         if es_linux() and hablante is None:
             consola.aviso(
-                "En la VM conviene calibrar: python3 -m src.calibrar_vm --hablante emmanuel"
+                "En la VM calibra ambos: python3 -m src.calibrar_vm --todos"
             )
         if mostrar_evaluacion:
             mostrar_evaluacion_demo()
@@ -398,8 +397,7 @@ def main() -> None:
         "--hablante",
         choices=HABLANTES,
         help=(
-            "Usar solo modelos de un hablante (recomendado tras calibrar_vm "
-            f"en la VM; default: {HABLANTE_PREDETERMINADO} si --demo en Linux)"
+            "Usar solo modelos de un hablante (si solo una persona calibro en la VM)"
         ),
     )
     parser.add_argument(
@@ -408,12 +406,6 @@ def main() -> None:
         help="Pide confirmacion antes de ejecutar el comando reconocido",
     )
     args = parser.parse_args()
-
-    hablante = args.hablante
-    if hablante is None and args.demo and es_linux():
-        hablante = HABLANTE_PREDETERMINADO
-
-    confirmar = args.confirmar
 
     if args.probar_comando:
         probar_comando_desde_archivo(args.probar_comando, verbose=args.verbose)
@@ -426,8 +418,8 @@ def main() -> None:
         mostrar_evaluacion=not args.sin_evaluacion,
         margen_comando=args.margen_comando,
         margen_comando_tercero=args.margen_comando_tercero,
-        hablante=hablante,
-        confirmar_comando=confirmar,
+        hablante=args.hablante,
+        confirmar_comando=args.confirmar,
     )
 
 

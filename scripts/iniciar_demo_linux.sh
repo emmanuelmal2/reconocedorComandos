@@ -14,11 +14,11 @@ fi
 
 if [[ ! -f "models/escalador.pkl" ]]; then
   echo "[aviso] No hay modelos entrenados."
-  echo "        Ejecuta: python3 -m src.calibrar_vm --hablante emmanuel"
+  echo "        Ejecuta: python3 -m src.calibrar_vm --todos"
   exit 1
 fi
 
-ACTIVAR="source .venv/bin/activate && python -m src.asistente --demo --hablante emmanuel"
+ACTIVAR="source .venv/bin/activate && python -m src.asistente --demo"
 TITULO="Asistente de voz - LPC+HMM"
 
 lanzar() {
