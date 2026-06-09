@@ -18,7 +18,7 @@ if [[ ! -f "models/escalador.pkl" ]]; then
 fi
 
 ACTIVAR="source .venv/bin/activate && python -m src.asistente --demo"
-TITULO="Asistente de voz — LPC+HMM"
+TITULO="Asistente de voz - LPC+HMM"
 
 lanzar() {
   local cmd=("$@")
@@ -29,12 +29,11 @@ lanzar() {
 }
 
 # Intenta abrir emulador grafico; si no hay GUI, corre en la terminal actual.
-if launch_terminal() {
+launch_terminal() {
   lanzar gnome-terminal --title "$TITULO" --geometry=100x32 -- bash -lc "$ACTIVAR; echo; read -p 'Pulsa Enter para cerrar...'" \
     || lanzar xfce4-terminal --title "$TITULO" --hold -e bash -lc "$ACTIVAR" \
     || lanzar konsole --title "$TITULO" -e bash -lc "$ACTIVAR" \
     || lanzar xterm -T "$TITULO" -e bash -lc "$ACTIVAR"
-  return 0
 }
 
 if [[ -n "${DISPLAY:-}" ]] || [[ -n "${WAYLAND_DISPLAY:-}" ]]; then
@@ -44,4 +43,6 @@ if [[ -n "${DISPLAY:-}" ]] || [[ -n "${WAYLAND_DISPLAY:-}" ]]; then
 fi
 
 echo "Sin emulador grafico detectado; iniciando en esta terminal..."
-bash -lc "$ACTIVAR"
+# shellcheck disable=SC1091
+source .venv/bin/activate
+exec python -m src.asistente --demo
