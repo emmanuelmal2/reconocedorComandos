@@ -18,6 +18,8 @@ from pathlib import Path
 
 from src.configuracion import (
     FRASES_DEMO,
+    HABLANTES,
+    HABLANTE_PREDETERMINADO,
     INTENCIONES,
     INTENCIONES_EJECUTABLES,
     MARGEN_MINIMO_ACTIVACION,
@@ -31,16 +33,20 @@ from src.demo_linux import (
     ejecutar_comando_en_terminal_nueva,
     es_linux,
 )
+from src.entrenar import cargar_escalador
 from src.evaluar import evaluar_dataset, mostrar_reporte_demo
 from src.ejecutar import ejecutar_intencion
 from src.grabar import grabar_audio_asistente
 from src.predecir import (
+    ModelosPorIntencion,
     calcular_margen_confianza,
+    cargar_modelos,
     es_comando_confiable,
     mostrar_puntajes,
     predecir_intencion,
     predecir_intencion_desde_senal,
 )
+from sklearn.preprocessing import StandardScaler
 
 
 def mostrar_frases_comando() -> None:
@@ -51,7 +57,14 @@ def mostrar_frases_comando() -> None:
         print(f'    {intencion:10s}: "{frase}"')
 
 
-def escuchar_activacion(verbose: bool = False, demo: bool = False) -> bool:
+def escuchar_activacion(
+    verbose: bool = False,
+    demo: bool = False,
+    *,
+    escalador: StandardScaler | None = None,
+    modelos: ModelosPorIntencion | None = None,
+    hablante: str | None = None,
+) -> bool:
     """
     Graba audio y verifica activacion con margen minimo de confianza.
 
@@ -72,6 +85,9 @@ def escuchar_activacion(verbose: bool = False, demo: bool = False) -> bool:
         senal,
         intenciones_permitidas=INTENCIONES,
         verbose=verbose,
+        escalador=escalador,
+        modelos=modelos,
+        hablante=hablante,
     )
     margen, primero, segundo = calcular_margen_confianza(puntajes)
     mostrar_puntajes(puntajes, intencion)
@@ -105,6 +121,10 @@ def escuchar_comando(
     demo: bool = False,
     margen_minimo: float = MARGEN_MINIMO_COMANDO,
     margen_tercero: float = MARGEN_MINIMO_COMANDO_TERCERO,
+    *,
+    escalador: StandardScaler | None = None,
+    modelos: ModelosPorIntencion | None = None,
+    hablante: str | None = None,
 ) -> tuple[str | None, dict[str, float]]:
     """
     Graba y predice comando con reintentos si la confianza es baja.
@@ -127,6 +147,9 @@ def escuchar_comando(
             senal,
             intenciones_permitidas=INTENCIONES_EJECUTABLES,
             verbose=verbose,
+            escalador=escalador,
+            modelos=modelos,
+            hablante=hablante,
         )
         confiable, margen, primero, segundo = es_comando_confiable(
             puntajes,
@@ -155,8 +178,22 @@ def escuchar_comando(
     return None, {}
 
 
+def confirmar_ejecucion_comando(intencion: str, demo: bool) -> bool:
+    """Pide confirmacion antes de ejecutar (evita lanzar el comando equivocado)."""
+    frase = FRASES_DEMO[intencion][0]
+    if demo:
+        consola.aviso(
+            f'  El modelo interpreto: {intencion} — "{frase}"\n'
+            "  Si NO es lo que dijiste, pulsa n."
+        )
+    else:
+        print(f'\n  Interpretacion: {intencion} — "{frase}"')
+    respuesta = input("  ¿Ejecutar este comando? [Enter=si / n=no]: ").strip().lower()
+    return respuesta not in ("n", "no")
+
+
 def probar_comando_desde_archivo(ruta_audio: Path, verbose: bool = False) -> None:
-    """Prueba prediccion de comando sin microfono (util para depurar red, etc.)."""
+    """Prueba prediccion de comando sin microfono."""
     print(f"\n=== Prueba offline: {ruta_audio} ===")
     intencion, puntajes = predecir_intencion(
         ruta_audio,
@@ -190,9 +227,14 @@ def ejecutar_flujo_asistente(
     mostrar_evaluacion: bool = True,
     margen_comando: float = MARGEN_MINIMO_COMANDO,
     margen_comando_tercero: float = MARGEN_MINIMO_COMANDO_TERCERO,
+    hablante: str | None = None,
+    confirmar_comando: bool = False,
 ) -> None:
     """Bucle principal del asistente de voz."""
     sistema = "macOS (desarrollo)" if sys.platform == "darwin" else "Linux"
+
+    escalador = cargar_escalador()
+    modelos = cargar_modelos()
 
     if demo:
         consola.banner_inicio(sistema, INTENCIONES_EJECUTABLES)
@@ -200,6 +242,16 @@ def ejecutar_flujo_asistente(
             f"Margenes: activacion={MARGEN_MINIMO_ACTIVACION}, "
             f"comando={margen_comando} (o {margen_comando_tercero} vs 3.º)"
         )
+        if hablante:
+            consola.info(f"Modelos solo del hablante: {hablante}")
+        else:
+            consola.info("Modelos: mejor score entre emmanuel y elioth")
+        if confirmar_comando:
+            consola.info("Confirmacion antes de ejecutar: activada")
+        if es_linux() and hablante is None:
+            consola.aviso(
+                "En la VM conviene calibrar: python3 -m src.calibrar_vm --hablante emmanuel"
+            )
         if mostrar_evaluacion:
             mostrar_evaluacion_demo()
         if es_linux():
@@ -210,13 +262,21 @@ def ejecutar_flujo_asistente(
     else:
         print("Asistente de voz iniciado.")
         print("Intenciones ejecutables:", ", ".join(INTENCIONES_EJECUTABLES))
+        if hablante:
+            print(f"Hablante en prediccion: {hablante}")
         print(
             f"Margenes minimos: activacion={MARGEN_MINIMO_ACTIVACION}, "
             f"comando={MARGEN_MINIMO_COMANDO}"
         )
 
     while True:
-        if not escuchar_activacion(verbose=verbose, demo=demo):
+        if not escuchar_activacion(
+            verbose=verbose,
+            demo=demo,
+            escalador=escalador,
+            modelos=modelos,
+            hablante=hablante,
+        ):
             if una_vez:
                 break
             continue
@@ -230,6 +290,9 @@ def ejecutar_flujo_asistente(
             demo=demo,
             margen_minimo=margen_comando,
             margen_tercero=margen_comando_tercero,
+            escalador=escalador,
+            modelos=modelos,
+            hablante=hablante,
         )
 
         if intencion is None:
@@ -242,6 +305,15 @@ def ejecutar_flujo_asistente(
             continue
 
         if intencion in INTENCIONES_EJECUTABLES:
+            if confirmar_comando and not confirmar_ejecucion_comando(intencion, demo):
+                if demo:
+                    consola.aviso("  Comando cancelado. Vuelve a activar e intenta de nuevo.")
+                else:
+                    print("  Comando cancelado.")
+                if una_vez:
+                    break
+                continue
+
             if demo:
                 consola.estado("ejecutando")
                 consola.exito(f"Comando reconocido: {intencion}")
@@ -322,7 +394,26 @@ def main() -> None:
             f"(default: {MARGEN_MINIMO_COMANDO_TERCERO})"
         ),
     )
+    parser.add_argument(
+        "--hablante",
+        choices=HABLANTES,
+        help=(
+            "Usar solo modelos de un hablante (recomendado tras calibrar_vm "
+            f"en la VM; default: {HABLANTE_PREDETERMINADO} si --demo en Linux)"
+        ),
+    )
+    parser.add_argument(
+        "--confirmar",
+        action="store_true",
+        help="Pide confirmacion antes de ejecutar el comando reconocido",
+    )
     args = parser.parse_args()
+
+    hablante = args.hablante
+    if hablante is None and args.demo and es_linux():
+        hablante = HABLANTE_PREDETERMINADO
+
+    confirmar = args.confirmar
 
     if args.probar_comando:
         probar_comando_desde_archivo(args.probar_comando, verbose=args.verbose)
@@ -335,6 +426,8 @@ def main() -> None:
         mostrar_evaluacion=not args.sin_evaluacion,
         margen_comando=args.margen_comando,
         margen_comando_tercero=args.margen_comando_tercero,
+        hablante=hablante,
+        confirmar_comando=confirmar,
     )
 
 

@@ -66,8 +66,9 @@ def _filtrar_modelos(
     modelos: ModelosPorIntencion,
     intenciones_permitidas: list[str] | None = None,
     intenciones_excluidas: list[str] | None = None,
+    hablante: str | None = None,
 ) -> ModelosPorIntencion:
-    """Filtra modelos por lista blanca o negra de intenciones."""
+    """Filtra modelos por intencion y, opcionalmente, por un solo hablante."""
     filtrados = dict(modelos)
 
     if intenciones_permitidas is not None:
@@ -77,6 +78,13 @@ def _filtrar_modelos(
     if intenciones_excluidas is not None:
         excluidas = set(intenciones_excluidas)
         filtrados = {k: v for k, v in filtrados.items() if k not in excluidas}
+
+    if hablante is not None:
+        filtrados = {
+            intencion: {hablante: modelo}
+            for intencion, modelos_hablante in filtrados.items()
+            if (modelo := modelos_hablante.get(hablante)) is not None
+        }
 
     return filtrados
 
@@ -184,9 +192,15 @@ def predecir_intencion_desde_lpc_con_modelos(
     modelos: ModelosPorIntencion,
     intenciones_permitidas: list[str] | None = None,
     intenciones_excluidas: list[str] | None = None,
+    hablante: str | None = None,
 ) -> tuple[str, dict[str, float]]:
     """Predice intencion con escalador y modelos ya cargados en memoria."""
-    modelos = _filtrar_modelos(modelos, intenciones_permitidas, intenciones_excluidas)
+    modelos = _filtrar_modelos(
+        modelos,
+        intenciones_permitidas,
+        intenciones_excluidas,
+        hablante=hablante,
+    )
 
     if not modelos:
         raise RuntimeError("No hay modelos HMM disponibles para la prediccion.")
@@ -226,11 +240,13 @@ def predecir_intencion_desde_lpc(
     carpeta_modelos: Path = CARPETA_MODELOS,
     intenciones_permitidas: list[str] | None = None,
     intenciones_excluidas: list[str] | None = None,
+    hablante: str | None = None,
     verbose: bool = False,
 ) -> tuple[str, dict[str, float]]:
     """
     Predice intencion a partir de una matriz LPC (n_bloques, 12).
     """
+    del verbose  # reservado para compatibilidad
     escalador = cargar_escalador(carpeta_modelos)
     modelos = cargar_modelos(carpeta_modelos)
     return predecir_intencion_desde_lpc_con_modelos(
@@ -239,6 +255,7 @@ def predecir_intencion_desde_lpc(
         modelos,
         intenciones_permitidas=intenciones_permitidas,
         intenciones_excluidas=intenciones_excluidas,
+        hablante=hablante,
     )
 
 
@@ -247,6 +264,7 @@ def predecir_intencion(
     carpeta_modelos: Path = CARPETA_MODELOS,
     intenciones_permitidas: list[str] | None = None,
     intenciones_excluidas: list[str] | None = None,
+    hablante: str | None = None,
     verbose: bool = False,
 ) -> tuple[str, dict[str, float]]:
     """
@@ -265,7 +283,7 @@ def predecir_intencion(
         carpeta_modelos=carpeta_modelos,
         intenciones_permitidas=intenciones_permitidas,
         intenciones_excluidas=intenciones_excluidas,
-        verbose=verbose,
+        hablante=hablante,
     )
 
 
@@ -274,7 +292,11 @@ def predecir_intencion_desde_senal(
     carpeta_modelos: Path = CARPETA_MODELOS,
     intenciones_permitidas: list[str] | None = None,
     intenciones_excluidas: list[str] | None = None,
+    hablante: str | None = None,
     verbose: bool = False,
+    *,
+    escalador: StandardScaler | None = None,
+    modelos: ModelosPorIntencion | None = None,
 ) -> tuple[str, dict[str, float]]:
     """Predice intencion a partir de una senal de audio grabada en memoria."""
     secuencia_lpc = procesar_senal_lpc(senal, verbose=verbose, etiqueta="microfono")
@@ -282,12 +304,22 @@ def predecir_intencion_desde_senal(
     if len(secuencia_lpc) == 0:
         raise ValueError("No se extrajeron bloques LPC validos del audio grabado.")
 
+    if escalador is not None and modelos is not None:
+        return predecir_intencion_desde_lpc_con_modelos(
+            secuencia_lpc,
+            escalador,
+            modelos,
+            intenciones_permitidas=intenciones_permitidas,
+            intenciones_excluidas=intenciones_excluidas,
+            hablante=hablante,
+        )
+
     return predecir_intencion_desde_lpc(
         secuencia_lpc,
         carpeta_modelos=carpeta_modelos,
         intenciones_permitidas=intenciones_permitidas,
         intenciones_excluidas=intenciones_excluidas,
-        verbose=verbose,
+        hablante=hablante,
     )
 
 
@@ -318,6 +350,11 @@ def main() -> None:
         help="Intenciones a excluir de la prediccion (ej. activacion)",
     )
     parser.add_argument(
+        "--hablante",
+        choices=HABLANTES,
+        help="Usar solo modelos de un hablante (util en la VM con tu voz)",
+    )
+    parser.add_argument(
         "--verbose",
         action="store_true",
         help="Muestra detalle de extraccion LPC y puntajes",
@@ -328,6 +365,7 @@ def main() -> None:
         args.audio,
         carpeta_modelos=args.carpeta_modelos,
         intenciones_excluidas=args.excluir,
+        hablante=args.hablante,
         verbose=args.verbose,
     )
 

@@ -44,8 +44,12 @@ pip install -r requirements.txt
 # Los .pkl no van en git: hay que entrenar una vez en la VM
 python3 -m src.entrenar
 
-# Demo con banner, matriz de confusion y bucle de voz
-./scripts/iniciar_demo_linux.sh
+# OBLIGATORIO en la VM: re-grabar con el microfono de la expo (~5 min)
+python3 -m src.calibrar_vm --hablante emmanuel
+
+# Demo (usa modelos de emmanuel en Linux por defecto)
+python3 -m src.asistente --demo --hablante emmanuel
+# o: ./scripts/iniciar_demo_linux.sh
 ```
 
 Frases exactas en la demo: **"oye computadora"** → activacion; luego **"listar archivos"**, **"muestra la memoria"** o **"ver procesos"**.
