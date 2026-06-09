@@ -4,7 +4,7 @@ Asistente de voz para Linux con activacion por frase y comandos del sistema.
 
 **Pipeline:** audio WAV → preenfasis → ventana Hamming → LPC → `GaussianHMM` → comando Bash (lista blanca).
 
-**Intenciones:** `activacion`, `listar`, `memoria`, `disco`, `red`, `procesos`
+**Intenciones:** `activacion`, `listar`, `memoria`, `procesos` (3 comandos + activacion)
 
 ---
 
@@ -27,19 +27,40 @@ source .venv/bin/activate        # Linux / macOS
 pip install -r requirements.txt
 ```
 
+### Puesta en marcha en VM Ubuntu (presentacion)
+
+```bash
+sudo apt update
+sudo apt install -y python3-venv python3-pip portaudio19-dev python3-tk \
+  gnome-terminal libnotify-bin
+
+cd ~/reconocedorComandos   # o donde clonaste el repo
+git pull
+
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# Los .pkl no van en git: hay que entrenar una vez en la VM
+python3 -m src.entrenar
+
+# Demo con banner, matriz de confusion y bucle de voz
+./scripts/iniciar_demo_linux.sh
+```
+
+Frases exactas en la demo: **"oye computadora"** → activacion; luego **"listar archivos"**, **"muestra la memoria"** o **"ver procesos"**.
+
 ---
 
 ## Estructura del proyecto
 
 ```
 ReconocimientoPatrones/
-├── dataset/
-│   ├── activacion/
-│   ├── listar/
-│   ├── memoria/
-│   ├── disco/
-│   ├── red/
-│   └── procesos/
+├── dataset/             # 40 WAV (4 intenciones x 1 frase x 5 reps x 2 hablantes)
+│   ├── activacion/      # frase01: oye computadora
+│   ├── listar/          # frase01: listar archivos
+│   ├── memoria/         # frase01: muestra la memoria
+│   └── procesos/        # frase02: ver procesos
 ├── models/              # escalador.pkl y *.pkl (generados al entrenar)
 ├── src/
 │   ├── configuracion.py
@@ -68,66 +89,35 @@ ReconocimientoPatrones/
 <intencion>_<hablante>_fraseXX_repYY.wav
 ```
 
-Ejemplos:
+Solo se usan **40 audios** (una frase activa por intencion, 5 repeticiones, 2 hablantes):
 
-```
-dataset/memoria/memoria_emmanuel_frase03_rep02.wav
-dataset/memoria/memoria_elioth_frase01_rep01.wav
-```
+| Carpeta | Frase en el nombre | Texto |
+|---------|-------------------|--------|
+| `activacion/` | `frase01` | oye computadora |
+| `listar/` | `frase01` | listar archivos |
+| `memoria/` | `frase01` | muestra la memoria |
+| `procesos/` | `frase02` | ver procesos |
 
-Varios hablantes pueden convivir en la misma carpeta; `entrenar.py` usa **todos** los `.wav`.
+Ejemplo: `dataset/memoria/memoria_elioth_frase01_rep03.wav`
 
 ---
 
 ## Instrucciones para Elioth (segundo hablante)
 
-El repo ya incluye los audios de **emmanuel**. Tu parte es grabar las mismas frases con tu voz.
-
-### 1. Clonar e instalar
+El repo ya incluye audios de **emmanuel** y **elioth** (40 WAV en total). Tras clonar:
 
 ```bash
-git clone git@github.com:emmanuelmal2/reconocedorComandos.git
-cd reconocedorComandos
-python3 -m venv .venv
+git pull
 source .venv/bin/activate
-pip install -r requirements.txt
+python3 -m src.entrenar
+python3 -m src.evaluar --grafica
 ```
 
-### 2. Grabar tus audios
+Para re-grabar alguna toma tuya:
 
 ```bash
-python -m src.grabar
-```
-
-Cuando pregunte quien graba, elige **2. elioth**.
-
-- Son **6 intenciones** x **5 frases** x **5 repeticiones** = **150 audios** (~25 min).
-- Se guardan como `*_elioth_*.wav` junto a los de emmanuel.
-- Para grabar solo una intencion:
-
-```bash
-python -m src.grabar --hablante elioth --intencion memoria
-```
-
-### 3. Entrenar y evaluar
-
-```bash
+python -m src.grabar --hablante elioth --forzar
 python -m src.entrenar
-python -m src.evaluar
-```
-
-### 4. Subir tus cambios a GitHub
-
-```bash
-git add dataset/
-git commit -m "Agrega audios de elioth al dataset"
-git push
-```
-
-O, si no usas Git: comprime `dataset/` y enviaselo a emmanuel.
-
-```bash
-zip -r dataset_con_elioth.zip dataset/
 ```
 
 ---
@@ -138,7 +128,7 @@ zip -r dataset_con_elioth.zip dataset/
 
 ```bash
 python -m src.grabar                  # pregunta: emmanuel o elioth
-python -m src.grabar --hablante elioth --intencion red
+python -m src.grabar --hablante elioth --intencion memoria
 python -m src.grabar --hablante emmanuel --forzar   # re-grabar sin preguntar
 ```
 
@@ -149,7 +139,9 @@ python -m src.entrenar
 python -m src.entrenar --verbose
 ```
 
-Genera `models/escalador.pkl` y un HMM por intencion (`activacion.pkl`, `listar.pkl`, ...).
+Genera `models/escalador.pkl` y un HMM por intencion **y hablante**
+(`memoria_emmanuel.pkl`, `memoria_elioth.pkl`, ...). En prediccion se usa el
+mejor score entre hablantes por intencion, asi funciona con ambas voces.
 
 ### Evaluar precision
 
@@ -188,7 +180,7 @@ Despues de re-grabar: `python -m src.entrenar`
 ### Probar un audio
 
 ```bash
-python -m src.predecir dataset/red/red_emmanuel_frase01_rep01.wav --verbose
+python -m src.predecir dataset/memoria/memoria_emmanuel_frase01_rep01.wav --verbose
 python -m src.predecir audio.wav --excluir activacion
 ```
 
@@ -197,14 +189,14 @@ python -m src.predecir audio.wav --excluir activacion
 ```bash
 python -m src.asistente
 python -m src.asistente --una-vez --verbose
-python -m src.asistente --probar-comando dataset/red/red_emmanuel_frase01_rep01.wav
+python -m src.asistente --probar-comando dataset/listar/listar_emmanuel_frase01_rep01.wav
 ```
 
 **Flujo:**
 
 1. Di frase de activacion (*"oye computadora"*).
 2. Si detecta `activacion`, di un comando (*"muestra la memoria"*, etc.).
-3. Ejecuta Bash solo para: `listar`, `memoria`, `disco`, `red`, `procesos`.
+3. Ejecuta Bash solo para: `listar`, `memoria`, `procesos`.
 
 ### Modo demo (presentacion en Linux / VM)
 
@@ -223,7 +215,7 @@ python -m src.asistente --demo
 - Al iniciar: evaluacion offline con **precision por intencion** y **matriz de confusion en matplotlib** (ventana grafica + PNG en `models/matriz_confusion.png`).
 - Banner de bienvenida y estados visibles (`ESCUCHA` → `ACTIVADO` → `COMANDO` → `EJECUTANDO`).
 - Al reconocer *"oye computadora"*: notificacion de escritorio (`notify-send`) y una terminal extra con el mensaje de activacion.
-- Al reconocer un comando: el Bash (`free -h`, `ip addr`, etc.) corre en **otra terminal nueva** para que se vea en pantalla.
+- Al reconocer un comando: el Bash (`ls -la`, `free -h`, `ps aux`, etc.) corre en **otra terminal nueva** para que se vea en pantalla.
 - En macOS sirve para probar colores; las ventanas extra solo funcionan en Linux.
 
 Para saltar la evaluacion inicial (arranque mas rapido):
@@ -256,13 +248,13 @@ Ver logs: `journalctl --user -u reconocedor-comandos -f`
 
 ## Comandos Bash (Linux)
 
-| Intencion  | Comando              |
-|-----------|----------------------|
-| listar    | `ls -la`             |
-| memoria   | `free -h`            |
-| disco     | `df -h`              |
-| red       | `ip addr`            |
-| procesos  | `ps aux --sort=-pcpu`|
+| Intencion  | Comando              | Frase demo sugerida        |
+|-----------|----------------------|----------------------------|
+| listar    | `ls -la`             | "listar archivos"          |
+| memoria   | `free -h`            | "muestra la memoria"       |
+| procesos  | `ps aux --sort=-pcpu`| "ver procesos"             |
+
+Activacion: **"oye computadora"** (frase unica por intencion; 5 repeticiones en el dataset).
 
 `activacion` no ejecuta nada (solo activa el modo escucha).
 

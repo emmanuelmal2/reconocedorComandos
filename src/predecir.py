@@ -4,8 +4,9 @@ Prediccion de intenciones de voz con modelos HMM entrenados.
 Flujo:
     1. Cargar escalador (solo transform)
     2. Extraer y escalar secuencia LPC
-    3. Calcular modelo.score(X, [len(X)]) por intencion
-    4. Elegir la intencion con mayor log-likelihood
+    3. Calcular modelo.score(X, [len(X)]) por intencion y hablante
+    4. Por intencion, tomar el mejor score entre hablantes (max-pooling)
+    5. Elegir la intencion con mayor log-likelihood
 """
 
 from __future__ import annotations
@@ -19,17 +20,20 @@ from hmmlearn.hmm import GaussianHMM
 from sklearn.preprocessing import StandardScaler
 
 from src.caracteristicas import extraer_secuencia_lpc, procesar_senal_lpc
-from src.configuracion import CARPETA_MODELOS, INTENCIONES
+from src.configuracion import CARPETA_MODELOS, HABLANTES, INTENCIONES, NOMBRE_ESCALADOR
 from src.entrenar import cargar_escalador
 
+# intencion -> hablante -> HMM
+ModelosPorIntencion = dict[str, dict[str, GaussianHMM]]
 
-def cargar_modelos(carpeta_modelos: Path = CARPETA_MODELOS) -> dict[str, GaussianHMM]:
-    """
-    Carga modelos HMM (.pkl) solo para intenciones vigentes en configuracion.
 
-    Ignora el escalador y modelos obsoletos (fecha, ruta, salir, etc.).
+def cargar_modelos(carpeta_modelos: Path = CARPETA_MODELOS) -> ModelosPorIntencion:
     """
-    modelos: dict[str, GaussianHMM] = {}
+    Carga HMMs por intencion y hablante (models/<intencion>_<hablante>.pkl).
+
+    Soporta modelos legacy models/<intencion>.pkl como hablante "_legacy".
+    """
+    modelos: ModelosPorIntencion = {}
 
     if not carpeta_modelos.is_dir():
         raise FileNotFoundError(
@@ -37,19 +41,32 @@ def cargar_modelos(carpeta_modelos: Path = CARPETA_MODELOS) -> dict[str, Gaussia
             "Ejecuta primero: python -m src.entrenar"
         )
 
-    for intencion in INTENCIONES:
-        ruta_pkl = carpeta_modelos / f"{intencion}.pkl"
-        if ruta_pkl.exists():
-            modelos[intencion] = joblib.load(ruta_pkl)
+    for ruta_pkl in sorted(carpeta_modelos.glob("*.pkl")):
+        nombre = ruta_pkl.stem
+        if nombre == NOMBRE_ESCALADOR:
+            continue
 
-    return modelos
+        cargado = False
+        for intencion in INTENCIONES:
+            for hablante in HABLANTES:
+                if nombre == f"{intencion}_{hablante}":
+                    modelos.setdefault(intencion, {})[hablante] = joblib.load(ruta_pkl)
+                    cargado = True
+                    break
+            if cargado:
+                break
+
+        if not cargado and nombre in INTENCIONES:
+            modelos.setdefault(nombre, {})["_legacy"] = joblib.load(ruta_pkl)
+
+    return {k: v for k, v in modelos.items() if v}
 
 
 def _filtrar_modelos(
-    modelos: dict[str, GaussianHMM],
+    modelos: ModelosPorIntencion,
     intenciones_permitidas: list[str] | None = None,
     intenciones_excluidas: list[str] | None = None,
-) -> dict[str, GaussianHMM]:
+) -> ModelosPorIntencion:
     """Filtra modelos por lista blanca o negra de intenciones."""
     filtrados = dict(modelos)
 
@@ -64,24 +81,30 @@ def _filtrar_modelos(
     return filtrados
 
 
+def _score_modelo(modelo: GaussianHMM, X: np.ndarray) -> float:
+    try:
+        return float(modelo.score(X, [len(X)]))
+    except Exception:
+        return float("-inf")
+
+
 def calcular_puntajes_modelos(
     X: np.ndarray,
-    modelos: dict[str, GaussianHMM],
+    modelos: ModelosPorIntencion,
 ) -> dict[str, float]:
     """
-    Calcula log-likelihood con modelo.score(X, [len(X)]).
+    Calcula log-likelihood por intencion.
+
+    Con varios hablantes, usa el mejor score de cada intencion (max-pooling):
+    asi funciona emmanuel y elioth sin identificar al hablante antes.
     """
     if len(X) == 0:
         return {intencion: float("-inf") for intencion in modelos}
 
-    longitudes = [len(X)]
-    puntajes = {}
-
-    for intencion, modelo in modelos.items():
-        try:
-            puntajes[intencion] = float(modelo.score(X, longitudes))
-        except Exception:
-            puntajes[intencion] = float("-inf")
+    puntajes: dict[str, float] = {}
+    for intencion, modelos_hablante in modelos.items():
+        scores = [_score_modelo(modelo, X) for modelo in modelos_hablante.values()]
+        puntajes[intencion] = max(scores) if scores else float("-inf")
 
     return puntajes
 
@@ -122,7 +145,7 @@ def es_prediccion_confiable(
 def predecir_intencion_desde_lpc_con_modelos(
     secuencia_lpc: np.ndarray,
     escalador: StandardScaler,
-    modelos: dict[str, GaussianHMM],
+    modelos: ModelosPorIntencion,
     intenciones_permitidas: list[str] | None = None,
     intenciones_excluidas: list[str] | None = None,
 ) -> tuple[str, dict[str, float]]:
@@ -144,7 +167,7 @@ def predecir_intencion_desde_lpc_con_modelos(
 def predecir_intencion_con_modelos(
     ruta_audio: str | Path,
     escalador: StandardScaler,
-    modelos: dict[str, GaussianHMM],
+    modelos: ModelosPorIntencion,
     intenciones_permitidas: list[str] | None = None,
     intenciones_excluidas: list[str] | None = None,
     verbose: bool = False,

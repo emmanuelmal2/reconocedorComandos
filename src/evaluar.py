@@ -22,6 +22,7 @@ from src.configuracion import (
     HOLDOUT_RANDOM_STATE,
     HOLDOUT_TEST_SIZE,
     INTENCIONES,
+    filtrar_audios_frase_activa,
 )
 from src.entrenar import entrenar_modelos_en_memoria
 from src.predecir import (
@@ -41,7 +42,7 @@ def _listar_audios_por_intencion(
         carpeta = carpeta_dataset / intencion
         if not carpeta.is_dir():
             continue
-        for ruta in sorted(carpeta.glob("*.wav")):
+        for ruta in filtrar_audios_frase_activa(sorted(carpeta.glob("*.wav")), intencion):
             muestras.append((intencion, ruta))
     return muestras
 

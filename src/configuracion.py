@@ -3,8 +3,11 @@ Configuracion central del proyecto de reconocimiento de comandos de voz.
 
 Asistente con activacion por voz:
     1. Detectar intencion "activacion" (ej. "oye computadora")
-    2. Escuchar comando (listar, memoria, disco, red, procesos)
+    2. Escuchar comando (listar, memoria, procesos)
     3. Ejecutar accion Bash solo para intenciones ejecutables
+
+Se usan 3 comandos con una frase fija cada uno (sin disco/red) para evitar
+confusiones entre hablantes.
 """
 
 from pathlib import Path
@@ -16,63 +19,49 @@ CARPETA_MODELOS = RAIZ_PROYECTO / "models"
 RUTA_ESCALADOR = CARPETA_MODELOS / "escalador.pkl"
 NOMBRE_ESCALADOR = "escalador"
 
-# Intenciones que entrenan y clasifican HMM
-INTENCIONES = ["activacion", "listar", "memoria", "disco", "red", "procesos"]
+
+def ruta_modelo_hablante(intencion: str, hablante: str) -> Path:
+    """Ruta del HMM por intencion y hablante: models/memoria_emmanuel.pkl"""
+    return CARPETA_MODELOS / f"{intencion}_{hablante}.pkl"
+
+# Intenciones activas (activacion + 3 comandos ejecutables)
+INTENCIONES = ["activacion", "listar", "memoria", "procesos"]
 
 # Intenciones que ejecutan comando Bash (activacion NO ejecuta nada)
-INTENCIONES_EJECUTABLES = ["listar", "memoria", "disco", "red", "procesos"]
+INTENCIONES_EJECUTABLES = ["listar", "memoria", "procesos"]
 
-# Frases de entrenamiento por intencion (5 frases x 5 repeticiones = 25 audios por intencion)
+# Una frase fija por intencion (la que se usa en entrenamiento, demo y en vivo)
 FRASES = {
-    "activacion": [
-        "oye computadora",
-        "hola computadora",
-        "escucha computadora",
-        "activar asistente",
-        "modo comando",
-    ],
-    "listar": [
-        "listar archivos",
-        "muestra los archivos",
-        "lista el directorio",
-        "ver archivos",
-        "ensename los archivos",
-    ],
-    "memoria": [
-        "muestra la memoria",
-        "ver memoria",
-        "uso de memoria",
-        "estado de memoria",
-        "cuanta memoria hay",
-    ],
-    "disco": [
-        "muestra el disco",
-        "ver espacio en disco",
-        "uso de disco",
-        "espacio disponible",
-        "cuanto espacio queda",
-    ],
-    "red": [
-        "muestra la red",
-        "ver interfaces de red",
-        "estado de red",
-        "muestra mi ip",
-        "ver configuracion de red",
-    ],
-    "procesos": [
-        "muestra los procesos",
-        "ver procesos",
-        "lista los procesos",
-        "procesos activos",
-        "que procesos hay",
-    ],
+    "activacion": ["oye computadora"],
+    "listar": ["listar archivos"],
+    "memoria": ["muestra la memoria"],
+    "procesos": ["ver procesos"],
 }
+
+# Indice de esa frase en el dataset grabado (frase01, frase02, ...)
+# Coincide con el orden original del set de 5 frases por intencion.
+FRASE_INDICE_POR_INTENCION: dict[str, int] = {
+    "activacion": 1,
+    "listar": 1,
+    "memoria": 1,
+    "procesos": 2,
+}
+
+# Misma frase unica para la demo
+FRASES_DEMO = FRASES
+
+
+def filtrar_audios_frase_activa(archivos: list[Path], intencion: str) -> list[Path]:
+    """Conserva solo los WAV de la frase activa (ej. frase01 para listar archivos)."""
+    numero = FRASE_INDICE_POR_INTENCION[intencion]
+    marcador = f"_frase{numero:02d}_"
+    return [ruta for ruta in archivos if marcador in ruta.name]
 
 # Parametros de grabacion
 FRECUENCIA_MUESTREO = 16000       # Hz, mono
 DURACION_GRABACION = 3            # segundos por toma
 REPETICIONES_POR_FRASE = 5
-FRASES_POR_INTENCION = 5
+FRASES_POR_INTENCION = 1
 
 # Hablantes del dataset (cada uno graba el mismo set de frases)
 HABLANTES = ["emmanuel", "elioth"]
@@ -102,4 +91,4 @@ HOLDOUT_TEST_SIZE = 0.2
 HOLDOUT_RANDOM_STATE = 42
 
 # Intenciones sugeridas para re-grabar audios mal clasificados
-INTENCIONES_REGRABAR_SUGERIDAS = ["memoria", "listar"]
+INTENCIONES_REGRABAR_SUGERIDAS = ["memoria", "listar", "procesos"]

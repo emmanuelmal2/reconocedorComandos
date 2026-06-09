@@ -25,8 +25,8 @@ models/*.pkl
 models/matriz_confusion.png
 models/matriz_confusion_holdout.png
 
-# Practicas locales (muy pesado, no necesario en GitHub)
-practicas_pasadas/
+# Copia temporal al integrar audios de otro hablante (ya van en dataset/)
+dataset_elioth/
 
 # Temporales
 *.log

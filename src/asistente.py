@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 from src.configuracion import (
-    FRASES,
+    FRASES_DEMO,
     INTENCIONES,
     INTENCIONES_EJECUTABLES,
     MARGEN_MINIMO_ACTIVACION,
@@ -42,19 +42,11 @@ from src.predecir import (
 
 
 def mostrar_frases_comando() -> None:
-    """Muestra frases de entrenamiento para orientar al usuario."""
-    print("\n  Frases que el modelo conoce (di una parecida):")
+    """Muestra la frase exacta que debe decir el usuario por comando."""
+    print("\n  Di exactamente esta frase para cada comando:")
     for intencion in INTENCIONES_EJECUTABLES:
-        ejemplos = FRASES[intencion][:2]
-        texto = '" | "'.join(ejemplos)
-        print(f"    {intencion:10s}: \"{texto}\"")
-
-
-def mostrar_frases_red() -> None:
-    """Frases especificas de red (intencion que suele fallar en vivo)."""
-    print("\n  Para RED, prueba exactamente una de estas:")
-    for i, frase in enumerate(FRASES["red"], start=1):
-        print(f"    {i}. \"{frase}\"")
+        frase = FRASES_DEMO[intencion][0]
+        print(f'    {intencion:10s}: "{frase}"')
 
 
 def escuchar_activacion(verbose: bool = False, demo: bool = False) -> bool:
@@ -68,7 +60,7 @@ def escuchar_activacion(verbose: bool = False, demo: bool = False) -> bool:
         consola.estado("escucha")
     else:
         print("\n=== Escuchando frase de activacion ===")
-    print('  Di por ejemplo: "oye computadora" o "hola computadora"')
+    print('  Di exactamente: "oye computadora"')
     if demo:
         consola.info("  Presiona Enter cuando vayas a hablar...")
     input("  Presiona Enter para grabar...")
@@ -114,7 +106,6 @@ def escuchar_comando(verbose: bool = False, demo: bool = False) -> tuple[str | N
         (intencion, puntajes) o (None, {}) si no hubo prediccion confiable.
     """
     mostrar_frases_comando()
-    mostrar_frases_red()
 
     for intento in range(1, MAX_REINTENTOS_COMANDO + 1):
         if demo:
@@ -141,9 +132,8 @@ def escuchar_comando(verbose: bool = False, demo: bool = False) -> tuple[str | N
             f"Gano '{primero}' pero '{segundo}' estaba muy cerca."
         )
         if intento < MAX_REINTENTOS_COMANDO:
-            print("  Repite la frase, igual que al grabar el dataset.")
-            if intencion == "red" or segundo == "red":
-                mostrar_frases_red()
+            print("  Repite la frase, igual que en la demo.")
+            mostrar_frases_comando()
 
     print("  No se obtuvo un comando confiable. Cancelando este ciclo.")
     return None, {}
