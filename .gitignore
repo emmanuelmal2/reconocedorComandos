@@ -24,6 +24,7 @@ build/
 models/*.pkl
 models/matriz_confusion.png
 models/matriz_confusion_holdout.png
+models/ultimo_microfono.wav
 
 # Copia temporal al integrar audios de otro hablante (ya van en dataset/)
 dataset_elioth/

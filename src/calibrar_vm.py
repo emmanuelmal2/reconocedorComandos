@@ -66,11 +66,19 @@ def calibrar_hablante(
     print(f"  (Los audios de otros hablantes en dataset/ no se modifican.)")
 
 
-def entrenar_y_evaluar(*, evaluar: bool = True) -> None:
-    print("\n  Re-entrenando modelos (emmanuel + elioth en este microfono)...")
-    subprocess.run([sys.executable, "-m", "src.entrenar"], check=True)
+def entrenar_y_evaluar(hablantes: list[str], *, evaluar: bool = True) -> None:
+    if len(hablantes) == 1:
+        h = hablantes[0]
+        print(
+            f"\n  Re-entrenando SOLO {h} (escalador + HMM alineados a este microfono)..."
+        )
+        cmd = [sys.executable, "-m", "src.entrenar", "--hablante", h]
+    else:
+        print("\n  Re-entrenando modelos de emmanuel y elioth...")
+        cmd = [sys.executable, "-m", "src.entrenar"]
+    subprocess.run(cmd, check=True)
     if evaluar:
-        print("\n  Evaluacion offline (deberia quedar cerca de 97%):")
+        print("\n  Evaluacion offline:")
         subprocess.run([sys.executable, "-m", "src.evaluar"], check=False)
 
 
@@ -96,7 +104,7 @@ def calibrar(
         calibrar_hablante(hablante, repeticiones=repeticiones)
 
     if entrenar:
-        entrenar_y_evaluar(evaluar=evaluar)
+        entrenar_y_evaluar(hablantes, evaluar=evaluar)
 
     print("\n" + "=" * 60)
     print("  CALIBRACION LISTA")

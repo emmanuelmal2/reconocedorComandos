@@ -22,9 +22,31 @@ from sklearn.preprocessing import StandardScaler
 from src.caracteristicas import extraer_secuencia_lpc, procesar_senal_lpc
 from src.configuracion import CARPETA_MODELOS, HABLANTES, INTENCIONES, NOMBRE_ESCALADOR
 from src.entrenar import cargar_escalador
+from src.grabar import guardar_audio
 
 # intencion -> hablante -> HMM
 ModelosPorIntencion = dict[str, dict[str, GaussianHMM]]
+
+
+def lpc_desde_senal_como_dataset(senal: np.ndarray) -> np.ndarray:
+    """
+    Extrae LPC del microfono con el mismo pipeline que un WAV de dataset/.
+
+    Guardar como PCM16 y leer con extraer_secuencia_lpc evita diferencias
+    entre audio en memoria y archivos de entrenamiento.
+    """
+    import os
+    import tempfile
+
+    senal = np.asarray(senal, dtype=np.float64).reshape(-1)
+    fd, ruta_tmp = tempfile.mkstemp(suffix=".wav")
+    os.close(fd)
+    path = Path(ruta_tmp)
+    try:
+        guardar_audio(path, senal)
+        return extraer_secuencia_lpc(path)
+    finally:
+        path.unlink(missing_ok=True)
 
 
 def cargar_modelos(carpeta_modelos: Path = CARPETA_MODELOS) -> ModelosPorIntencion:
@@ -297,9 +319,17 @@ def predecir_intencion_desde_senal(
     *,
     escalador: StandardScaler | None = None,
     modelos: ModelosPorIntencion | None = None,
+    ruta_debug_wav: Path | None = None,
 ) -> tuple[str, dict[str, float]]:
     """Predice intencion a partir de una senal de audio grabada en memoria."""
-    secuencia_lpc = procesar_senal_lpc(senal, verbose=verbose, etiqueta="microfono")
+    senal = np.asarray(senal, dtype=np.float64).reshape(-1)
+    if ruta_debug_wav is not None:
+        guardar_audio(ruta_debug_wav, senal)
+        secuencia_lpc = extraer_secuencia_lpc(ruta_debug_wav, verbose=verbose)
+    else:
+        secuencia_lpc = lpc_desde_senal_como_dataset(senal)
+        if verbose:
+            print("  LPC extraido via pipeline identico a dataset/ (WAV temporal)")
 
     if len(secuencia_lpc) == 0:
         raise ValueError("No se extrajeron bloques LPC validos del audio grabado.")

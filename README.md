@@ -44,12 +44,15 @@ pip install -r requirements.txt
 # Los .pkl no van en git: hay que entrenar una vez en la VM
 python3 -m src.entrenar
 
-# Calibracion en la VM: solo Emmanuel re-graba (Elioth ya no puede; sus WAV del repo se conservan)
+# Calibracion en la VM: solo Emmanuel re-graba (~5 min, obligatorio para demo en vivo)
 python3 -m src.calibrar_vm --hablante emmanuel
+# ^ entrena con: python3 -m src.entrenar --hablante emmanuel (solo tu voz + este micro)
 
-# Demo en vivo: solo modelos de Emmanuel (micro de la VM)
+# Probar un comando suelto antes de la demo:
+python3 -m src.probar_microfono --hablante emmanuel --comandos
+
+# Demo en vivo
 python3 -m src.asistente --demo --hablante emmanuel
-# o: ./scripts/iniciar_demo_linux.sh
 ```
 
 Frases exactas en la demo: **"oye computadora"** → activacion; luego **"listar archivos"**, **"muestra la memoria"** o **"ver procesos"**.

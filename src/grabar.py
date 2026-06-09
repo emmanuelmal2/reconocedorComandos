@@ -221,11 +221,15 @@ def grabar_audio_asistente(
     *,
     aviso: bool = True,
 ) -> np.ndarray:
-    """Graba y prepara audio para prediccion en vivo."""
+    """
+    Graba audio para el asistente en vivo.
+
+    Sin recorte extra: mismo formato que los WAV del dataset (3 s PCM16).
+    La extraccion LPC ya elimina silencio por bloques.
+    """
     if aviso:
-        print("\a", end="", flush=True)  # beep: empieza a grabar ya
-    audio = grabar_audio(duracion_segundos, frecuencia)
-    return preparar_audio_en_vivo(audio, frecuencia)
+        print("\a", end="", flush=True)
+    return grabar_audio(duracion_segundos, frecuencia)
 
 
 def guardar_audio(
